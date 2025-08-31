@@ -1,0 +1,1040 @@
+---
+title: Redirects Plugin
+label: Redirects
+order: 70
+desc: Automatically create redirects for your Payload application with comprehensive URL management
+keywords: payload, cms, plugin, redirects, seo, typescript, react, nextjs, url management, redirects collection
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](docs/plugins/redirects.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-redirects](https://img.shields.io/npm/v/@payloadcms/plugin-redirects)
+
+This plugin allows you to easily manage redirects for your application from within your [Admin Panel](../admin/overview). It does so by adding a `redirects` collection to your config that allows you specify a redirect from one URL to another. Your front-end application can use this data to automatically redirect users to the correct page using proper HTTP status codes. This is useful for SEO, indexing, and search engine ranking when re-platforming or when changing your URL structure.
+
+For example, if you have a page at `/about` and you want to change it to `/about-us`, you can create a redirect from the old page to the new one, then you can use this data to write HTTP redirects into your front-end application. This will ensure that users are redirected to the correct page without penalty because search engines are notified of the change at the request level. This is a very lightweight plugin that will allow you to integrate managed redirects for any front-end framework.
+
+<Banner type="info">
+  This plugin is completely open-source and the [source code can be found
+  here](https://github.com/payloadcms/payload/tree/main/packages/plugin-redirects).
+  If you need help, check out our [Community
+  Help](https://payloadcms.com/community-help). If you think you've found a bug,
+  please [open a new
+  issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%redirects&template=bug_report.md&title=plugin-redirects%3A)
+  with as much detail as possible.
+</Banner>
+
+## Core features
+
+- Adds a `redirects` collection to your config that:
+  - includes a `from` and `to` fields
+  - allows `to` to be a document reference
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+  pnpm add @payloadcms/plugin-redirects
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](https://payloadcms.com/docs/configuration/overview), call the plugin with [options](#options):
+
+```ts
+import { buildConfig } from 'payload'
+import { redirectsPlugin } from '@payloadcms/plugin-redirects'
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'pages',
+      fields: [],
+    },
+  ],
+  plugins: [
+    redirectsPlugin({
+      collections: ['pages'],
+    }),
+  ],
+})
+
+export default config
+```
+
+### Options
+
+| Option                      | Type       | Description                                                                                             |
+| --------------------------- | ---------- | ------------------------------------------------------------------------------------------------------- |
+| `collections`               | `string[]` | An array of collection slugs to populate in the `to` field of each redirect.                            |
+| `overrides`                 | `object`   | A partial collection config that allows you to override anything on the `redirects` collection.         |
+| `redirectTypes`             | `string[]` | Provide an array of redirects if you want to provide options for the type of redirects to be supported. |
+| `redirectTypeFieldOverride` | `Field`    | A partial Field config that allows you to override the Redirect Type field if enabled above.            |
+
+Note that the fields in overrides take a function that receives the default fields and returns an array of fields. This allows you to add fields to the collection.
+
+```ts
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    fields: ({ defaultFields }) => {
+      return [
+        ...defaultFields,
+        {
+          type: 'text',
+          name: 'customField',
+        },
+      ]
+    },
+  },
+  redirectTypes: ['301', '302'],
+  redirectTypeFieldOverride: {
+    label: 'Redirect Type (Overridden)',
+  },
+})
+```
+
+## TypeScript
+
+All types can be directly imported:
+
+```ts
+import { PluginConfig } from '@payloadcms/plugin-redirects/types'
+```
+
+## Examples
+
+The [Templates Directory](https://github.com/payloadcms/payload/tree/main/templates) also contains an official [Website Template](https://github.com/payloadcms/payload/tree/main/templates/website) and [E-commerce Template](https://github.com/payloadcms/payload/tree/main/templates/ecommerce), both of which use this plugin.
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-redirects)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-redirects)
+
+## Detailed Overview
+
+The `@payloadcms/plugin-redirects` is a lightweight but powerful plugin that enables comprehensive URL redirect management within PayloadCMS applications. This plugin automatically adds a fully-featured `redirects` collection to your PayloadCMS configuration, allowing administrators to create, manage, and maintain URL redirects directly from the admin panel.
+
+The plugin addresses critical SEO and user experience challenges that arise during website migrations, URL structure changes, or content reorganization. By providing proper HTTP status codes and seamless redirect management, it ensures that search engines properly index your content and users are never met with broken links.
+
+Key benefits include maintaining SEO rankings during site restructuring, providing a user-friendly interface for non-technical administrators to manage redirects, and offering flexible integration with any frontend framework or static site generator.
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-redirects). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (compatible with Payload v3+)
+- **Node.js**: 18+ (ES modules support required)
+- **TypeScript**: 5+ (optional but recommended)
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-redirects
+
+# yarn
+yarn add @payloadcms/plugin-redirects
+
+# pnpm
+pnpm add @payloadcms/plugin-redirects
+```
+
+### Peer Dependencies
+This package requires the following peer dependencies:
+```bash
+payload (workspace:*)
+```
+
+## Quick Start
+
+Basic configuration for immediate redirect management:
+
+```typescript
+import { buildConfig } from 'payload'
+import { redirectsPlugin } from '@payloadcms/plugin-redirects'
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'pages',
+      fields: [
+        {
+          name: 'title',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+  ],
+  plugins: [
+    // Minimal setup - creates redirects collection with reference to pages
+    redirectsPlugin({
+      collections: ['pages'], // Collections available in 'to' field
+    }),
+  ],
+})
+
+export default config
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `string[]`
+- **Default value**: `[]`
+- **Required**: false
+
+Specifies which collections should be available as destination targets in the redirect's "to" field. This creates a relationship field allowing administrators to select internal documents as redirect destinations.
+
+```typescript
+redirectsPlugin({
+  collections: ['pages', 'posts', 'products'], // Multiple collections supported
+})
+```
+
+#### `overrides`
+
+- **Type**: `Partial<Omit<CollectionConfig, 'fields'>> & { fields?: FieldsOverride }`
+- **Default value**: `{}`
+- **Required**: false
+
+Allows complete customization of the redirects collection. You can override any collection configuration property including access controls, admin settings, hooks, and custom fields.
+
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    slug: 'custom-redirects', // Custom collection slug
+    access: {
+      read: () => true,
+      create: ({ req }) => req.user?.role === 'admin', // Restrict creation to admins
+    },
+    admin: {
+      defaultColumns: ['from', 'to.type', 'type', 'updatedAt'],
+      useAsTitle: 'from',
+    },
+    hooks: {
+      afterChange: [
+        ({ doc, req }) => {
+          console.log(`Redirect updated: ${doc.from} -> ${doc.to}`)
+          // Custom logic after redirect changes
+        }
+      ],
+    },
+    fields: ({ defaultFields }) => [
+      ...defaultFields,
+      {
+        name: 'description',
+        type: 'textarea',
+        label: 'Redirect Description',
+        admin: {
+          description: 'Internal notes about this redirect'
+        },
+      },
+      {
+        name: 'isActive',
+        type: 'checkbox',
+        label: 'Active',
+        defaultValue: true,
+        admin: {
+          description: 'Uncheck to temporarily disable this redirect'
+        },
+      },
+    ],
+  },
+})
+```
+
+#### `redirectTypes`
+
+- **Type**: `('301' | '302' | '303' | '307' | '308')[]`
+- **Default value**: `undefined` (field not shown)
+- **Required**: false
+
+When provided, enables a "Redirect Type" field in the admin interface, allowing administrators to select the appropriate HTTP status code for each redirect.
+
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  redirectTypes: ['301', '302'], // Only show permanent and temporary redirects
+})
+```
+
+##### Available redirect types:
+- **301 - Permanent**: Search engines transfer ranking power to new URL
+- **302 - Temporary**: Original URL keeps ranking power  
+- **303 - See Other**: Response to POST request, directs to GET
+- **307 - Temporary Redirect**: Preserves request method and body
+- **308 - Permanent Redirect**: Preserves request method and body
+
+#### `redirectTypeFieldOverride`
+
+- **Type**: `Partial<SelectField>`
+- **Default value**: `{}`
+- **Required**: false
+
+Customizes the redirect type selection field when `redirectTypes` is enabled.
+
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  redirectTypes: ['301', '302', '307', '308'],
+  redirectTypeFieldOverride: {
+    label: 'HTTP Status Code',
+    admin: {
+      description: 'Choose the appropriate redirect status code for SEO',
+      width: '50%',
+    },
+    defaultValue: '301', // Default to permanent redirect
+  },
+})
+```
+
+### Configuration Schema
+
+```typescript
+import type { CollectionConfig, Field, SelectField } from 'payload'
+
+// Main plugin configuration
+export type RedirectsPluginConfig = {
+  collections?: string[] // Collection slugs for redirect destinations
+  overrides?: { fields?: FieldsOverride } & Partial<Omit<CollectionConfig, 'fields'>>
+  redirectTypeFieldOverride?: Partial<SelectField>
+  redirectTypes?: ('301' | '302' | '303' | '307' | '308')[]
+}
+
+// Function type for field customization
+export type FieldsOverride = (args: { defaultFields: Field[] }) => Field[]
+
+// Available redirect status codes
+export const redirectTypes = ['301', '302', '303', '307', '308'] as const
+
+// Predefined redirect options with labels
+export const redirectOptions = [
+  { label: '301 - Permanent', value: '301' },
+  { label: '302 - Temporary', value: '302' },
+  { label: '303 - See Other', value: '303' },
+  { label: '307 - Temporary Redirect', value: '307' },
+  { label: '308 - Permanent Redirect', value: '308' },
+]
+```
+
+## Usage Guides
+
+### Basic Redirect Management
+Set up simple URL redirections for common use cases:
+
+```typescript
+// 1. Configure the plugin
+redirectsPlugin({
+  collections: ['pages'],
+  redirectTypes: ['301', '302'],
+})
+
+// 2. Create redirects via admin panel or API
+const redirect = await payload.create({
+  collection: 'redirects',
+  data: {
+    from: '/old-about-page',
+    to: {
+      type: 'custom',
+      url: '/about-us',
+    },
+    type: '301', // Permanent redirect for SEO
+  },
+})
+```
+
+### Advanced Frontend Integration
+Implement redirects in your Next.js application:
+
+```typescript
+// lib/redirects.ts - Fetch redirects from Payload
+import type { Payload } from 'payload'
+
+export async function getRedirects(payload: Payload) {
+  const redirects = await payload.find({
+    collection: 'redirects',
+    depth: 2, // Include referenced documents
+    limit: 1000,
+  })
+  
+  return redirects.docs.map(redirect => ({
+    source: redirect.from,
+    destination: redirect.to.type === 'reference' 
+      ? `/${redirect.to.reference.value.slug}` 
+      : redirect.to.url,
+    permanent: redirect.type === '301',
+  }))
+}
+
+// next.config.js - Apply redirects
+export default {
+  async redirects() {
+    const payload = await getPayload({ config })
+    const redirects = await getRedirects(payload)
+    await payload.destroy()
+    return redirects
+  },
+}
+
+// middleware.ts - Runtime redirect handling
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function middleware(request: NextRequest) {
+  // Fetch redirects from your API or cache
+  const redirects = await fetch(`${request.nextUrl.origin}/api/redirects`)
+    .then(res => res.json())
+  
+  const redirect = redirects.find(r => r.source === request.nextUrl.pathname)
+  
+  if (redirect) {
+    const status = redirect.permanent ? 308 : 307
+    return NextResponse.redirect(new URL(redirect.destination, request.url), status)
+  }
+  
+  return NextResponse.next()
+}
+```
+
+### Custom Field Extensions
+Add business-specific fields to track redirect analytics:
+
+```typescript
+redirectsPlugin({
+  collections: ['pages', 'posts'],
+  overrides: {
+    fields: ({ defaultFields }) => [
+      ...defaultFields,
+      {
+        name: 'analytics',
+        type: 'group',
+        label: 'Analytics & Tracking',
+        fields: [
+          {
+            name: 'clicks',
+            type: 'number',
+            label: 'Total Clicks',
+            defaultValue: 0,
+            admin: { readOnly: true },
+          },
+          {
+            name: 'lastAccessed',
+            type: 'date',
+            label: 'Last Accessed',
+            admin: { readOnly: true },
+          },
+          {
+            name: 'campaign',
+            type: 'text',
+            label: 'Campaign Code',
+            admin: {
+              description: 'UTM campaign identifier'
+            },
+          },
+        ],
+      },
+      {
+        name: 'seoData',
+        type: 'group',
+        label: 'SEO Information',
+        fields: [
+          {
+            name: 'reason',
+            type: 'select',
+            label: 'Redirect Reason',
+            options: [
+              { label: 'Page Moved', value: 'moved' },
+              { label: 'Content Merged', value: 'merged' },
+              { label: 'URL Restructure', value: 'restructure' },
+              { label: 'Temporary Maintenance', value: 'maintenance' },
+            ],
+          },
+          {
+            name: 'notes',
+            type: 'textarea',
+            label: 'SEO Notes',
+            admin: {
+              description: 'Internal notes for SEO team'
+            },
+          },
+        ],
+      },
+    ],
+    hooks: {
+      beforeChange: [
+        ({ data, req }) => {
+          // Auto-increment click counter via API
+          if (req.method === 'PATCH' && req.query.source === 'redirect-hit') {
+            data.analytics = {
+              ...data.analytics,
+              clicks: (data.analytics?.clicks || 0) + 1,
+              lastAccessed: new Date(),
+            }
+          }
+          return data
+        }
+      ],
+    },
+  },
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `redirectsPlugin(config)`
+
+Main plugin factory function that returns a Payload plugin configuration.
+
+**Parameters:**
+| Parameter | Type | Description | Required |
+|-----------|------|-------------|----------|
+| `config` | `RedirectsPluginConfig` | Plugin configuration object | Yes |
+
+**Returns:** `(incomingConfig: Config) => Config`
+
+**Example:**
+```typescript
+const plugin = redirectsPlugin({
+  collections: ['pages'],
+  redirectTypes: ['301', '302'],
+})
+
+// Use in Payload config
+export default buildConfig({
+  plugins: [plugin],
+})
+```
+
+### Exported Constants
+
+#### `redirectTypes`
+
+Array of supported HTTP redirect status codes.
+
+**Type:** `readonly ['301', '302', '303', '307', '308']`
+
+**Example:**
+```typescript
+import { redirectTypes } from '@payloadcms/plugin-redirects'
+
+// Use all available types
+redirectsPlugin({
+  redirectTypes: [...redirectTypes],
+})
+```
+
+#### `redirectOptions`
+
+Predefined options for the redirect type select field with human-readable labels.
+
+**Type:** `{ label: string; value: string }[]`
+
+**Example:**
+```typescript
+import { redirectOptions } from '@payloadcms/plugin-redirects'
+
+console.log(redirectOptions)
+// [
+//   { label: '301 - Permanent', value: '301' },
+//   { label: '302 - Temporary', value: '302' },
+//   ...
+// ]
+```
+
+### TypeScript Types
+
+```typescript
+import type { CollectionConfig, Field, SelectField } from 'payload'
+
+// Main configuration type
+export type RedirectsPluginConfig = {
+  collections?: string[]
+  overrides?: { fields?: FieldsOverride } & Partial<Omit<CollectionConfig, 'fields'>>
+  redirectTypeFieldOverride?: Partial<SelectField>
+  redirectTypes?: (typeof redirectTypes)[number][]
+}
+
+// Field override function type
+export type FieldsOverride = (args: { defaultFields: Field[] }) => Field[]
+
+// Available redirect types
+export const redirectTypes = ['301', '302', '303', '307', '308'] as const
+
+// Generated redirect document structure
+interface RedirectDocument {
+  id: string
+  from: string // Source URL path
+  to: {
+    type: 'reference' | 'custom'
+    reference?: {
+      relationTo: string
+      value: string | Document
+    }
+    url?: string // Custom destination URL
+  }
+  type?: '301' | '302' | '303' | '307' | '308' // When redirectTypes is enabled
+  createdAt: string
+  updatedAt: string
+  // Additional fields from overrides
+}
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+The plugin integrates with PayloadCMS collection lifecycle hooks:
+
+**Default Hooks Used:**
+- **Collection Creation**: Automatically adds the redirects collection to your configuration
+- **Field Validation**: Ensures unique 'from' URLs and validates URL formats
+- **Admin Interface**: Provides default columns and admin settings
+
+**Custom Hook Integration:**
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    hooks: {
+      beforeChange: [
+        ({ data, operation }) => {
+          if (operation === 'create') {
+            // Log new redirects for audit trail
+            console.log(`New redirect created: ${data.from}`)
+          }
+          return data
+        }
+      ],
+      afterChange: [
+        ({ doc, req }) => {
+          // Trigger cache invalidation
+          if (req.context?.revalidate) {
+            req.context.revalidate('/redirects')
+          }
+        }
+      ],
+      beforeDelete: [
+        ({ req, id }) => {
+          // Prevent deletion of critical redirects
+          const criticalRedirects = ['/old-homepage', '/legacy-products']
+          if (criticalRedirects.some(path => req.query.from === path)) {
+            throw new Error('Cannot delete critical redirect')
+          }
+        }
+      ],
+    },
+  },
+})
+```
+
+### Database
+**Schema Changes:**
+- Creates a new `redirects` collection (or custom slug via overrides)
+- Adds indexes on the `from` field for fast lookup performance
+- Supports relationships to other collections via `to.reference`
+
+**Database Fields:**
+```sql
+-- Auto-generated fields by plugin
+CREATE TABLE redirects (
+  id VARCHAR PRIMARY KEY,
+  from VARCHAR UNIQUE NOT NULL, -- Indexed for performance
+  to_type ENUM('reference', 'custom'),
+  to_reference_relation_to VARCHAR,
+  to_reference_value VARCHAR,
+  to_url VARCHAR,
+  type ENUM('301', '302', '303', '307', '308'), -- Optional
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+```
+
+### External Services
+**Frontend Framework Integration:**
+- **Next.js**: Use in `next.config.js` redirects or middleware
+- **Gatsby**: Generate redirects for gatsby-plugin-redirect
+- **Nuxt**: Integrate with server middleware or generate routes
+- **Static Sites**: Export to `_redirects` file for Netlify/Vercel
+
+**CDN Integration:**
+```typescript
+// Generate CDN redirect rules
+async function generateCDNRedirects() {
+  const redirects = await payload.find({
+    collection: 'redirects',
+    limit: 1000,
+  })
+  
+  // Format for Cloudflare Workers
+  const cloudflareRules = redirects.docs.map(redirect => ({
+    source: redirect.from,
+    destination: redirect.to.url || `/api/resolve-reference/${redirect.to.reference.value}`,
+    status: parseInt(redirect.type || '301'),
+  }))
+  
+  // Format for Netlify _redirects
+  const netlifyRules = redirects.docs
+    .map(r => `${r.from} ${r.to.url || ''} ${r.type || '301'}`)
+    .join('\n')
+    
+  return { cloudflareRules, netlifyRules }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Redirect Not Working in Production
+
+**Problem:** Redirects work in development but fail in production environment.
+
+**Solution:**
+1. Ensure redirects are fetched at build time
+2. Check Next.js redirect limits (1000 max in next.config.js)
+3. Verify proper status codes are set
+
+**Example:**
+```typescript
+// next.config.js - Proper async redirect loading
+export default {
+  async redirects() {
+    try {
+      const payload = await getPayload({ config })
+      const redirectsData = await payload.find({
+        collection: 'redirects',
+        limit: 1000, // Next.js limit
+      })
+      
+      return redirectsData.docs.map(redirect => ({
+        source: redirect.from,
+        destination: redirect.to.type === 'reference' 
+          ? `/${redirect.to.reference.value.slug}`
+          : redirect.to.url,
+        permanent: redirect.type === '301',
+      }))
+    } catch (error) {
+      console.error('Failed to load redirects:', error)
+      return [] // Fallback to prevent build failure
+    }
+  },
+}
+```
+
+#### Circular Redirect Loops
+
+**Problem:** Redirects create infinite loops between URLs.
+
+**Solution:**
+Implement validation to detect and prevent circular redirects:
+
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    hooks: {
+      beforeValidate: [
+        async ({ data, req }) => {
+          // Detect circular redirects
+          const visited = new Set()
+          let current = data.from
+          
+          while (current && !visited.has(current)) {
+            visited.add(current)
+            
+            const existingRedirect = await req.payload.find({
+              collection: 'redirects',
+              where: { from: { equals: current } },
+              limit: 1,
+            })
+            
+            if (existingRedirect.docs[0]) {
+              current = existingRedirect.docs[0].to.url
+            } else {
+              break
+            }
+          }
+          
+          if (visited.has(data.to.url)) {
+            throw new Error(`Circular redirect detected: ${[...visited, data.to.url].join(' -> ')}`)
+          }
+          
+          return data
+        }
+      ],
+    },
+  },
+})
+```
+
+#### Performance with Large Numbers of Redirects
+
+**Problem:** Site becomes slow with thousands of redirects.
+
+**Solution:**
+1. Implement caching strategy
+2. Use database indexes
+3. Consider external redirect service
+
+**Example:**
+```typescript
+// Redis caching for redirects
+import Redis from 'ioredis'
+
+const redis = new Redis(process.env.REDIS_URL)
+
+export async function getCachedRedirects() {
+  const cached = await redis.get('redirects')
+  
+  if (cached) {
+    return JSON.parse(cached)
+  }
+  
+  const redirects = await payload.find({
+    collection: 'redirects',
+    limit: 5000,
+  })
+  
+  // Cache for 5 minutes
+  await redis.setex('redirects', 300, JSON.stringify(redirects.docs))
+  
+  return redirects.docs
+}
+```
+
+### Debugging
+
+**Enable Debug Logging:**
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    hooks: {
+      afterChange: [
+        ({ doc, operation }) => {
+          console.log(`Redirect ${operation}:`, {
+            id: doc.id,
+            from: doc.from,
+            to: doc.to,
+            type: doc.type,
+          })
+        }
+      ],
+    },
+  },
+})
+```
+
+**Validate Redirect Data:**
+```typescript
+// API endpoint to test redirects
+// pages/api/test-redirects.ts
+export default async function handler(req, res) {
+  const redirects = await payload.find({
+    collection: 'redirects',
+    depth: 2,
+  })
+  
+  const results = await Promise.all(
+    redirects.docs.map(async (redirect) => {
+      try {
+        const destination = redirect.to.type === 'reference'
+          ? `/${redirect.to.reference.value.slug}`
+          : redirect.to.url
+          
+        // Test if destination exists
+        const response = await fetch(`${req.headers.host}${destination}`, {
+          method: 'HEAD',
+        })
+        
+        return {
+          from: redirect.from,
+          to: destination,
+          status: response.status,
+          valid: response.ok,
+        }
+      } catch (error) {
+        return {
+          from: redirect.from,
+          error: error.message,
+          valid: false,
+        }
+      }
+    })
+  )
+  
+  res.json({ redirects: results })
+}
+```
+
+## Migration
+
+### From version 2.x to 3.x
+
+Breaking changes in v3.0 include updated field structure and TypeScript improvements:
+
+```typescript
+// v2.x configuration
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    fields: (fields) => [...fields, customField] // Old format
+  },
+})
+
+// v3.x configuration
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    fields: ({ defaultFields }) => [...defaultFields, customField] // New format
+  },
+})
+```
+
+**Migration Steps:**
+1. Update field override function signature
+2. Replace deprecated `redirectTo` field with new `to` group structure
+3. Update TypeScript imports from `/types` export
+
+## Performance
+
+### Performance Optimization
+
+**Database Optimization:**
+- The plugin automatically adds indexes on the `from` field
+- Use `limit` parameter when fetching large numbers of redirects
+- Consider pagination for admin interfaces
+
+**Caching Strategy:**
+```typescript
+// In-memory cache for frequently accessed redirects
+const redirectCache = new Map()
+
+async function getRedirectWithCache(fromUrl: string) {
+  if (redirectCache.has(fromUrl)) {
+    return redirectCache.get(fromUrl)
+  }
+  
+  const redirect = await payload.find({
+    collection: 'redirects',
+    where: { from: { equals: fromUrl } },
+    limit: 1,
+  })
+  
+  if (redirect.docs[0]) {
+    redirectCache.set(fromUrl, redirect.docs[0])
+    // Cache for 5 minutes
+    setTimeout(() => redirectCache.delete(fromUrl), 300000)
+  }
+  
+  return redirect.docs[0]
+}
+```
+
+**Build-time Optimization:**
+Generate static redirect files for CDN deployment:
+
+```typescript
+// scripts/generate-redirects.ts
+import fs from 'fs'
+import path from 'path'
+
+async function generateStaticRedirects() {
+  const redirects = await payload.find({
+    collection: 'redirects',
+    limit: 10000,
+  })
+  
+  // Generate Netlify _redirects file
+  const netlifyRedirects = redirects.docs
+    .map(r => `${r.from} ${r.to.url || ''} ${r.type || '301'}`)
+    .join('\n')
+    
+  fs.writeFileSync(path.join(process.cwd(), 'public/_redirects'), netlifyRedirects)
+  
+  // Generate Vercel vercel.json redirects
+  const vercelRedirects = {
+    redirects: redirects.docs.map(r => ({
+      source: r.from,
+      destination: r.to.url || '',
+      statusCode: parseInt(r.type || '301'),
+    }))
+  }
+  
+  fs.writeFileSync(
+    path.join(process.cwd(), 'vercel.json'),
+    JSON.stringify(vercelRedirects, null, 2)
+  )
+}
+```
+
+## Security
+
+**Input Validation:** The plugin validates URLs to prevent injection attacks and ensures proper URL formatting.
+
+**Access Control:** Configure access permissions to restrict redirect management:
+
+```typescript
+redirectsPlugin({
+  collections: ['pages'],
+  overrides: {
+    access: {
+      read: () => true, // Public read for frontend
+      create: ({ req }) => req.user?.role === 'admin',
+      update: ({ req }) => req.user?.role === 'admin',
+      delete: ({ req }) => req.user?.role === 'admin',
+    },
+  },
+})
+```
+
+**Rate Limiting:** Implement rate limiting for redirect endpoints:
+
+```typescript
+// middleware/rate-limit.ts
+import rateLimit from 'express-rate-limit'
+
+export const redirectRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many redirect requests from this IP',
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+```
+
+## Example Projects
+
+- [PayloadCMS Website Template](https://github.com/payloadcms/payload/tree/main/templates/website) - Full-featured website with redirect management and revalidation hooks
+- [E-commerce Template](https://github.com/payloadcms/payload/tree/main/templates/ecommerce) - Product URL redirects for inventory changes
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%redirects&template=bug_report.md&title=plugin-redirects%3A) or submit a Pull Request.
+
+## License
+
+MIT License - see the [LICENSE](https://github.com/payloadcms/payload/blob/main/packages/plugin-redirects/LICENSE.md) file for details.
