@@ -1,0 +1,1241 @@
+---
+title: Multi-Tenant Plugin
+label: Multi-Tenant
+order: 50
+desc: Scaffolds multi-tenancy for your Payload application with advanced filtering, access control, and tenant separation
+keywords: plugins, multi-tenant, multi-tenancy, plugin, payload, cms, tenant-isolation, access-control, data-separation
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](/docs/plugins/multi-tenant.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-multi-tenant](https://img.shields.io/npm/v/@payloadcms/plugin-multi-tenant)
+
+This plugin sets up multi-tenancy for your application from within your [Admin Panel](../admin/overview). It does so by adding a `tenant` field to all specified collections. Your front-end application can then query data by tenant. You must add the Tenants collection so you control what fields are available for each tenant.
+
+<Banner type="info">
+  This plugin is completely open-source and the [source code can be found
+  here](https://github.com/payloadcms/payload/tree/main/packages/plugin-multi-tenant).
+  If you need help, check out our [Community
+  Help](https://payloadcms.com/community-help). If you think you've found a bug,
+  please [open a new
+  issue](https://github.com/payloadcms/payload/issues/new/choose) with as much
+  detail as possible.
+</Banner>
+
+## Core features
+
+- Adds a `tenant` field to each specified collection
+- Adds a tenant selector to the admin panel, allowing you to switch between tenants
+- Filters list view results by selected tenant
+- Filters relationship fields by selected tenant
+- Ability to create "global" like collections, 1 doc per tenant
+- Automatically assign a tenant to new documents
+
+<Banner type="error">
+  **Warning**
+
+By default this plugin cleans up documents when a tenant is deleted. You should ensure you have
+strong access control on your tenants collection to prevent deletions by unauthorized users.
+
+You can disable this behavior by setting `cleanupAfterTenantDelete` to `false` in the plugin options.
+
+</Banner>
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+  pnpm add @payloadcms/plugin-multi-tenant
+```
+
+### Options
+
+The plugin accepts an object with the following properties:
+
+```ts
+type MultiTenantPluginConfig<ConfigTypes = unknown> = {
+  /**
+   * Base path for your application
+   *
+   * https://nextjs.org/docs/app/api-reference/config/next-config-js/basePath
+   *
+   * @default undefined
+   */
+  basePath?: string
+  /**
+   * After a tenant is deleted, the plugin will attempt to clean up related documents
+   * - removing documents with the tenant ID
+   * - removing the tenant from users
+   *
+   * @default true
+   */
+  cleanupAfterTenantDelete?: boolean
+  /**
+   * Automatically
+   */
+  collections: {
+    [key in CollectionSlug]?: {
+      /**
+       * Set to `true` if you want the collection to behave as a global
+       *
+       * @default false
+       */
+      isGlobal?: boolean
+      /**
+       * Opt out of adding the tenant field and place
+       * it manually using the `tenantField` export from the plugin
+       */
+      customTenantField?: boolean
+      /**
+       * Overrides for the tenant field, will override the entire tenantField configuration
+       */
+      tenantFieldOverrides?: CollectionTenantFieldConfigOverrides
+      /**
+       * Set to `false` if you want to manually apply the baseListFilter
+       * Set to `false` if you want to manually apply the baseFilter
+       *
+       * @default true
+       */
+      useBaseFilter?: boolean
+      /**
+       * @deprecated Use `useBaseFilter` instead. If both are defined,
+       * `useBaseFilter` will take precedence. This property remains only
+       * for backward compatibility and may be removed in a future version.
+       *
+       * Originally, `baseListFilter` was intended to filter only the List View
+       * in the admin panel. However, base filtering is often required in other areas
+       * such as internal link relationships in the Lexical editor.
+       *
+       * @default true
+       */
+      useBaseListFilter?: boolean
+      /**
+       * Set to `false` if you want to handle collection access manually without the multi-tenant constraints applied
+       *
+       * @default true
+       */
+      useTenantAccess?: boolean
+    }
+  }
+  /**
+   * Enables debug mode
+   * - Makes the tenant field visible in the admin UI within applicable collections
+   *
+   * @default false
+   */
+  debug?: boolean
+  /**
+   * Enables the multi-tenant plugin
+   *
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * Localization for the plugin
+   */
+  i18n?: {
+    translations: {
+      [key in AcceptedLanguages]?: {
+        /**
+         * @default 'You are about to change ownership from <0>{{fromTenant}}</0> to <0>{{toTenant}}</0>'
+         */
+        'confirm-modal-tenant-switch--body'?: string
+        /**
+         * `tenantLabel` defaults to the value of the `nav-tenantSelector-label` translation
+         *
+         * @default 'Confirm {{tenantLabel}} change'
+         */
+        'confirm-modal-tenant-switch--heading'?: string
+        /**
+         * @default 'Assigned Tenant'
+         */
+        'field-assignedTenant-label'?: string
+        /**
+         * @default 'Tenant'
+         */
+        'nav-tenantSelector-label'?: string
+      }
+    }
+  }
+  /**
+   * Field configuration for the field added to all tenant enabled collections
+   */
+  tenantField?: RootTenantFieldConfigOverrides
+  /**
+   * Field configuration for the field added to the users collection
+   *
+   * If `includeDefaultField` is `false`, you must include the field on your users collection manually
+   * This is useful if you want to customize the field or place the field in a specific location
+   */
+  tenantsArrayField?:
+    | {
+        /**
+         * Access configuration for the array field
+         */
+        arrayFieldAccess?: ArrayField['access']
+        /**
+         * Name of the array field
+         *
+         * @default 'tenants'
+         */
+        arrayFieldName?: string
+        /**
+         * Name of the tenant field
+         *
+         * @default 'tenant'
+         */
+        arrayTenantFieldName?: string
+        /**
+         * When `includeDefaultField` is `true`, the field will be added to the users collection automatically
+         */
+        includeDefaultField?: true
+        /**
+         * Additional fields to include on the tenants array field
+         */
+        rowFields?: Field[]
+        /**
+         * Access configuration for the tenant field
+         */
+        tenantFieldAccess?: RelationshipField['access']
+      }
+    | {
+        arrayFieldAccess?: never
+        arrayFieldName?: string
+        arrayTenantFieldName?: string
+        /**
+         * When `includeDefaultField` is `false`, you must include the field on your users collection manually
+         */
+        includeDefaultField?: false
+        rowFields?: never
+        tenantFieldAccess?: never
+      }
+  /**
+   * Customize tenant selector label
+   *
+   * Either a string or an object where the keys are i18n codes and the values are the string labels
+   *
+   * @deprecated Use `i18n.translations` instead.
+   */
+  tenantSelectorLabel?:
+    | Partial<{
+        [key in AcceptedLanguages]?: string
+      }>
+    | string
+  /**
+   * The slug for the tenant collection
+   *
+   * @default 'tenants'
+   */
+  tenantsSlug?: string
+  /**
+   * Function that determines if a user has access to _all_ tenants
+   *
+   * Useful for super-admin type users
+   */
+  userHasAccessToAllTenants?: (
+    user: ConfigTypes extends { user: unknown }
+      ? ConfigTypes['user']
+      : TypedUser,
+  ) => boolean
+  /**
+   * Opt out of adding access constraints to the tenants collection
+   */
+  useTenantsCollectionAccess?: boolean
+  /**
+   * Opt out including the baseListFilter to filter tenants by selected tenant
+   */
+  useTenantsListFilter?: boolean
+  /**
+   * Opt out including the baseListFilter to filter users by selected tenant
+   */
+  useUsersTenantFilter?: boolean
+}
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](https://payloadcms.com/docs/configuration/overview), call the plugin with [options](#options):
+
+```ts
+import { buildConfig } from 'payload'
+import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
+import type { Config } from './payload-types'
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'tenants',
+      admin: {
+        useAsTitle: 'name',
+      },
+      fields: [
+        // remember, you own these fields
+        // these are merely suggestions/examples
+        {
+          name: 'name',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'domain',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+  ],
+  plugins: [
+    multiTenantPlugin<Config>({
+      collections: {
+        pages: {},
+        navigation: {
+          isGlobal: true,
+        },
+      },
+    }),
+  ],
+})
+
+export default config
+```
+
+## Front end usage
+
+The plugin scaffolds out everything you will need to separate data by tenant. You can use the `tenant` field to filter data from enabled collections in your front-end application.
+
+In your frontend you can query and constrain data by tenant with the following:
+
+```tsx
+const pagesBySlug = await payload.find({
+  collection: 'pages',
+  depth: 1,
+  draft: false,
+  limit: 1000,
+  overrideAccess: false,
+  where: {
+    // your constraint would depend on the
+    // fields you added to the tenants collection
+    // here we are assuming a slug field exists
+    // on the tenant collection, like in the example above
+    'tenant.slug': {
+      equals: 'gold',
+    },
+  },
+})
+```
+
+### NextJS rewrites
+
+Using NextJS rewrites and this route structure `/[tenantDomain]/[slug]`, we can rewrite routes specifically for domains requested:
+
+```ts
+async rewrites() {
+  return [
+    {
+      source: '/((?!admin|api)):path*',
+      destination: '/:tenantDomain/:path*',
+      has: [
+        {
+          type: 'host',
+          value: '(?<tenantDomain>.*)',
+        },
+      ],
+    },
+  ];
+}
+```
+
+### React Hooks
+
+Below are the hooks exported from the plugin that you can import into your own custom components to consume.
+
+#### useTenantSelection
+
+You can import this like so:
+
+```tsx
+import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+
+...
+
+const tenantContext = useTenantSelection()
+```
+
+The hook returns the following context:
+
+```ts
+type ContextType = {
+  /**
+   * Array of options to select from
+   */
+  options: OptionObject[]
+  /**
+   * The currently selected tenant ID
+   */
+  selectedTenantID: number | string | undefined
+  /**
+   * Prevents a refresh when the tenant is changed
+   *
+   * If not switching tenants while viewing a "global",
+   * set to true
+   */
+  setPreventRefreshOnChange: React.Dispatch<React.SetStateAction<boolean>>
+  /**
+   * Sets the selected tenant ID
+   *
+   * @param args.id - The ID of the tenant to select
+   * @param args.refresh - Whether to refresh the page
+   * after changing the tenant
+   */
+  setTenant: (args: {
+    id: number | string | undefined
+    refresh?: boolean
+  }) => void
+}
+```
+
+## Examples
+
+The [Examples Directory](https://github.com/payloadcms/payload/tree/main/examples) also contains an official [Multi-Tenant](https://github.com/payloadcms/payload/tree/main/examples/multi-tenant) example.
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-multi-tenant)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-multi-tenant)
+
+## Detailed Overview
+
+The Multi-Tenant Plugin is a comprehensive solution for implementing multi-tenancy in PayloadCMS applications. It provides complete tenant isolation at the data layer while maintaining a unified admin interface. This plugin is designed for applications that serve multiple organizations, clients, or separate data contexts from a single PayloadCMS instance.
+
+The plugin addresses key challenges in multi-tenant architectures by automatically managing tenant-specific data access, providing secure isolation between tenants, and offering flexible configuration options for different use cases. Whether you're building a SaaS platform, managing multiple client websites, or creating separate environments within the same application, this plugin provides the foundation for secure and scalable multi-tenancy.
+
+Key benefits include automatic data filtering, role-based tenant access, seamless admin UI integration, and robust security measures that prevent data leakage between tenants. The plugin supports both traditional collections and global-like collections that maintain one document per tenant.
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-multi-tenant). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: ^3.0.0 (workspace dependency)
+- **Next.js**: ^15.2.3
+- **Node.js**: ^18.0.0 or higher
+- **TypeScript**: Fully supported with comprehensive type definitions
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-multi-tenant
+
+# yarn
+yarn add @payloadcms/plugin-multi-tenant
+
+# pnpm
+pnpm add @payloadcms/plugin-multi-tenant
+```
+
+### Peer Dependencies
+This package requires the following peer dependencies:
+```bash
+npm install @payloadcms/ui payload next
+```
+
+## Quick Start
+
+Basic multi-tenant setup with pages and navigation collections:
+
+```typescript
+import { buildConfig } from 'payload'
+import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
+import type { Config } from './payload-types'
+
+export default buildConfig({
+  collections: [
+    // Define your tenants collection
+    {
+      slug: 'tenants',
+      admin: { useAsTitle: 'name' },
+      fields: [
+        { name: 'name', type: 'text', required: true },
+        { name: 'slug', type: 'text', required: true },
+        { name: 'domain', type: 'text', required: true }
+      ]
+    },
+    // Other collections...
+  ],
+  plugins: [
+    multiTenantPlugin<Config>({
+      collections: {
+        pages: {}, // Regular tenant-specific collection
+        navigation: { isGlobal: true }, // One document per tenant
+        media: { useTenantAccess: false } // Shared across tenants
+      },
+      userHasAccessToAllTenants: (user) => user.role === 'super-admin'
+    })
+  ]
+})
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `{ [key in CollectionSlug]?: CollectionConfig }`
+- **Required**: true
+
+Defines which collections should be tenant-enabled and how they should behave. Each collection can be configured with specific tenant behavior.
+
+```typescript
+collections: {
+  pages: {
+    isGlobal: false,           // Regular collection with multiple docs per tenant
+    useTenantAccess: true,     // Apply automatic access control
+    useBaseFilter: true        // Filter by tenant automatically
+  },
+  navigation: {
+    isGlobal: true,            // One document per tenant (acts like a global)
+    customTenantField: false   // Use auto-generated tenant field
+  },
+  media: {
+    useTenantAccess: false,    // Disable automatic tenant filtering
+    useBaseFilter: false       // Manual access control implementation
+  }
+}
+```
+
+##### Sub-options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `isGlobal` | `boolean` | `false` | Makes collection behave like a global with one document per tenant |
+| `customTenantField` | `boolean` | `false` | Opt out of automatic tenant field injection |
+| `tenantFieldOverrides` | `object` | `{}` | Custom configuration for the tenant field |
+| `useBaseFilter` | `boolean` | `true` | Apply automatic filtering by tenant |
+| `useTenantAccess` | `boolean` | `true` | Apply automatic access control constraints |
+
+#### `userHasAccessToAllTenants`
+
+- **Type**: `(user: User) => boolean`
+- **Default**: `() => false`
+- **Required**: false
+
+Function to determine super-admin users who can access all tenants. This is crucial for administrative operations.
+
+```typescript
+userHasAccessToAllTenants: (user) => {
+  return user.role === 'super-admin' || user.email === 'admin@example.com'
+}
+```
+
+#### `tenantsSlug`
+
+- **Type**: `string`
+- **Default**: `'tenants'`
+- **Required**: false
+
+The collection slug for your tenants collection. Must match your actual tenants collection slug.
+
+```typescript
+tenantsSlug: 'organizations' // If your collection slug is 'organizations'
+```
+
+#### `cleanupAfterTenantDelete`
+
+- **Type**: `boolean`
+- **Default**: `true`
+- **Required**: false
+
+Automatically removes all tenant-related data when a tenant is deleted. **Use with caution in production.**
+
+```typescript
+cleanupAfterTenantDelete: false // Disable automatic cleanup for safety
+```
+
+#### `debug`
+
+- **Type**: `boolean`
+- **Default**: `false`
+- **Required**: false
+
+Enables debug mode which makes tenant fields visible in the admin UI for development purposes.
+
+```typescript
+debug: process.env.NODE_ENV === 'development'
+```
+
+### Configuration Schema
+
+```typescript
+interface MultiTenantPluginConfig<ConfigTypes = unknown> {
+  basePath?: string
+  cleanupAfterTenantDelete?: boolean
+  collections: {
+    [key in CollectionSlug]?: {
+      isGlobal?: boolean
+      customTenantField?: boolean
+      tenantFieldOverrides?: CollectionTenantFieldConfigOverrides
+      useBaseFilter?: boolean
+      useBaseListFilter?: boolean // Deprecated
+      useTenantAccess?: boolean
+    }
+  }
+  debug?: boolean
+  enabled?: boolean
+  i18n?: {
+    translations: {
+      [key in AcceptedLanguages]?: {
+        'confirm-modal-tenant-switch--body'?: string
+        'confirm-modal-tenant-switch--heading'?: string
+        'field-assignedTenant-label'?: string
+        'nav-tenantSelector-label'?: string
+      }
+    }
+  }
+  tenantField?: RootTenantFieldConfigOverrides
+  tenantsArrayField?: TenantsArrayFieldConfig
+  tenantSelectorLabel?: string | LocalizedLabels
+  tenantsSlug?: string
+  userHasAccessToAllTenants?: (user: User) => boolean
+  useTenantsCollectionAccess?: boolean
+  useTenantsListFilter?: boolean
+  useUsersTenantFilter?: boolean
+}
+```
+
+## Usage Guides
+
+### Basic Multi-Tenant Setup
+
+Step-by-step implementation for a typical multi-tenant application:
+
+```typescript
+// 1. Define your tenants collection
+const Tenants: CollectionConfig = {
+  slug: 'tenants',
+  admin: {
+    useAsTitle: 'name',
+  },
+  access: {
+    // Add appropriate access controls
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => req.user?.role === 'super-admin',
+    update: ({ req }) => req.user?.role === 'super-admin',
+    delete: ({ req }) => req.user?.role === 'super-admin',
+  },
+  fields: [
+    { name: 'name', type: 'text', required: true },
+    { name: 'slug', type: 'text', required: true, unique: true },
+    { name: 'domain', type: 'text', required: true },
+    { name: 'settings', type: 'json' } // Tenant-specific configuration
+  ]
+}
+
+// 2. Configure the plugin
+multiTenantPlugin({
+  collections: {
+    pages: {},
+    posts: {},
+    categories: { isGlobal: true }, // One category tree per tenant
+    media: { useTenantAccess: false } // Shared media library
+  },
+  userHasAccessToAllTenants: (user) => user.role === 'super-admin',
+  tenantsArrayField: {
+    includeDefaultField: true,
+    rowFields: [
+      { name: 'role', type: 'select', options: ['admin', 'editor', 'viewer'] }
+    ]
+  }
+})
+```
+
+### Advanced Access Control Implementation
+
+For complex scenarios where default access control isn't sufficient:
+
+```typescript
+import { getTenantAccess } from '@payloadcms/plugin-multi-tenant/utilities'
+
+// Custom access control for shared resources
+const MediaCollection: CollectionConfig = {
+  slug: 'media',
+  fields: [
+    { name: 'isShared', type: 'checkbox', defaultValue: false }
+  ],
+  access: {
+    read: ({ req, doc }) => {
+      if (!req.user) return false
+      
+      // Custom logic combining tenant access with shared resources
+      const whereConstraint = {
+        or: [
+          { isShared: { equals: true } }, // Shared across all tenants
+        ]
+      }
+      
+      // Add tenant-specific access
+      const tenantAccessResult = getTenantAccess({ user: req.user })
+      if (tenantAccessResult) {
+        whereConstraint.or.push(tenantAccessResult)
+      }
+      
+      return whereConstraint
+    }
+  }
+}
+
+// Plugin configuration with custom access disabled
+multiTenantPlugin({
+  collections: {
+    media: { 
+      useTenantAccess: false, // Disable automatic access control
+      useBaseFilter: false   // Implement custom filtering
+    }
+  }
+})
+```
+
+### Frontend Implementation with Next.js
+
+Complete frontend integration example:
+
+```typescript
+// pages/[tenant]/[...slug].tsx
+import { GetStaticProps, GetStaticPaths } from 'next'
+import { payload } from '../../payload'
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  // Get all tenant domains
+  const tenants = await payload.find({
+    collection: 'tenants',
+    limit: 0
+  })
+  
+  const paths = []
+  
+  for (const tenant of tenants.docs) {
+    // Get all pages for this tenant
+    const pages = await payload.find({
+      collection: 'pages',
+      where: { 'tenant.slug': { equals: tenant.slug } }
+    })
+    
+    pages.docs.forEach(page => {
+      paths.push({
+        params: { 
+          tenant: tenant.slug, 
+          slug: page.slug.split('/').filter(Boolean) 
+        }
+      })
+    })
+  }
+  
+  return { paths, fallback: 'blocking' }
+}
+
+export const getStaticProps: GetStaticProps = async ({ params }) => {
+  const { tenant: tenantSlug, slug } = params
+  
+  // Get tenant
+  const tenant = await payload.find({
+    collection: 'tenants',
+    where: { slug: { equals: tenantSlug } },
+    limit: 1
+  })
+  
+  if (!tenant.docs.length) {
+    return { notFound: true }
+  }
+  
+  // Get page for this tenant
+  const page = await payload.find({
+    collection: 'pages',
+    where: {
+      and: [
+        { slug: { equals: `/${(slug as string[]).join('/')}` } },
+        { 'tenant.id': { equals: tenant.docs[0].id } }
+      ]
+    },
+    limit: 1
+  })
+  
+  return {
+    props: {
+      page: page.docs[0] || null,
+      tenant: tenant.docs[0]
+    }
+  }
+}
+```
+
+### Advanced Patterns
+
+#### Custom Tenant Field Implementation
+
+For specialized tenant field requirements:
+
+```typescript
+import { tenantField } from '@payloadcms/plugin-multi-tenant/fields'
+
+const CustomCollection: CollectionConfig = {
+  slug: 'custom-collection',
+  fields: [
+    // Custom tenant field with additional properties
+    {
+      ...tenantField({
+        name: 'organization', // Custom field name
+        tenantsCollectionSlug: 'organizations',
+        debug: false
+      }),
+      admin: {
+        position: 'sidebar', // Custom positioning
+        description: 'Select the organization this item belongs to'
+      },
+      validate: (value, { user }) => {
+        // Custom validation logic
+        if (!value && user.role !== 'super-admin') {
+          return 'Organization selection is required'
+        }
+        return true
+      }
+    }
+  ]
+}
+
+// Plugin configuration with custom field
+multiTenantPlugin({
+  collections: {
+    'custom-collection': {
+      customTenantField: true // Disable auto-injection
+    }
+  }
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `multiTenantPlugin<ConfigType>(config)`
+
+Main plugin function that configures multi-tenancy for your PayloadCMS application.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `MultiTenantPluginConfig<ConfigType>` | Plugin configuration object |
+
+**Returns:** `(incomingConfig: Config) => Config`
+
+**Example:**
+```typescript
+const plugin = multiTenantPlugin<MyConfigType>({
+  collections: { pages: {} },
+  userHasAccessToAllTenants: (user) => user.role === 'admin'
+})
+```
+
+### React Components
+
+#### `TenantField`
+
+Custom field component for tenant selection in admin UI.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `path` | `string` | Field path in form |
+| `label` | `string` | Field label |
+| `required` | `boolean` | Whether field is required |
+
+**Example:**
+```tsx
+import { TenantField } from '@payloadcms/plugin-multi-tenant/client'
+
+const CustomForm = () => (
+  <TenantField
+    path="tenant"
+    label="Select Organization"
+    required
+  />
+)
+```
+
+#### `WatchTenantCollection`
+
+Internal component that monitors tenant changes and updates the UI accordingly.
+
+### Hooks
+
+#### `useTenantSelection()`
+
+React hook for accessing and managing tenant selection state in custom components.
+
+**Parameters:** None
+
+**Returns:**
+| Property | Type | Description |
+|----------|------|-------------|
+| `options` | `OptionObject[]` | Available tenant options |
+| `selectedTenantID` | `string \| number \| undefined` | Currently selected tenant |
+| `setTenant` | `Function` | Function to change selected tenant |
+| `setPreventRefreshOnChange` | `Function` | Control page refresh behavior |
+
+**Example:**
+```typescript
+import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+
+const TenantSwitcher = () => {
+  const { options, selectedTenantID, setTenant } = useTenantSelection()
+  
+  return (
+    <select 
+      value={selectedTenantID} 
+      onChange={(e) => setTenant({ id: e.target.value, refresh: true })}
+    >
+      {options.map(option => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+```
+
+### TypeScript Types
+
+```typescript
+// Core plugin configuration
+export interface MultiTenantPluginConfig<ConfigTypes = unknown> {
+  basePath?: string
+  cleanupAfterTenantDelete?: boolean
+  collections: CollectionConfigurations
+  debug?: boolean
+  enabled?: boolean
+  tenantField?: RootTenantFieldConfigOverrides
+  tenantsSlug?: string
+  userHasAccessToAllTenants?: (user: User) => boolean
+}
+
+// Tenant data structure
+export interface Tenant<IDType = number | string> {
+  id: IDType
+  name: string
+  [key: string]: any // Additional tenant fields
+}
+
+// User with tenant relationships
+export interface UserWithTenantsField extends TypedUser {
+  tenants?: Array<{
+    tenant: number | string | Tenant
+    [key: string]: any // Additional relationship fields
+  }> | null
+}
+
+// Field configuration overrides
+export type RootTenantFieldConfigOverrides = Partial<
+  Omit<SingleRelationshipField, 
+    '_sanitized' | 'hasMany' | 'relationTo' | 'type' | 'unique'
+  >
+>
+
+// Tenant selection context
+export interface TenantSelectionContextType {
+  options: OptionObject[]
+  selectedTenantID: number | string | undefined
+  setPreventRefreshOnChange: React.Dispatch<React.SetStateAction<boolean>>
+  setTenant: (args: { id: number | string | undefined, refresh?: boolean }) => void
+}
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+
+The plugin integrates with several PayloadCMS hooks:
+
+- **`beforeChange`**: Automatically assigns tenant to new documents
+- **`afterDelete`**: Cleans up related documents when tenants are deleted
+- **`access`**: Applies tenant-based access control to all operations
+
+### Database
+
+The plugin works with all PayloadCMS-supported databases:
+
+- **MongoDB**: Adds tenant fields to documents and applies filters
+- **PostgreSQL**: Creates relationships and applies WHERE clauses
+- **SQLite**: Supports tenant filtering with proper indexing
+
+Schema changes include:
+- Addition of `tenant` field to enabled collections
+- `tenants` array field on user collection
+- Proper indexing for performance optimization
+
+### External Services
+
+The plugin supports integration with:
+
+- **Authentication providers**: Works with any auth system that provides user context
+- **CDNs**: Tenant-specific asset delivery
+- **Search engines**: Tenant-filtered search results
+- **Email services**: Tenant-specific email configurations
+
+## Troubleshooting
+
+### Common Issues
+
+#### Tenant Field Not Appearing
+
+**Problem:** The tenant field is not visible in the admin UI.
+
+**Solution:**
+1. Enable debug mode to make fields visible during development
+2. Verify the collection is properly configured in the plugin
+3. Check that the plugin is loaded after collection definitions
+
+**Example:**
+```typescript
+multiTenantPlugin({
+  debug: true, // Makes tenant fields visible
+  collections: {
+    pages: {} // Ensure collection is included
+  }
+})
+```
+
+#### Access Denied Errors
+
+**Problem:** Users cannot access documents they should have access to.
+
+**Solution:**
+1. Verify user has tenant assignments in their profile
+2. Check `userHasAccessToAllTenants` function logic
+3. Ensure tenant field relationships are properly set up
+
+**Example:**
+```typescript
+// Debug access issues
+const debugAccess = (user) => {
+  console.log('User tenants:', user.tenants)
+  console.log('Is super admin:', userHasAccessToAllTenants(user))
+  return userHasAccessToAllTenants(user)
+}
+```
+
+#### Documents Not Filtered by Tenant
+
+**Problem:** Users see documents from all tenants instead of just their own.
+
+**Solution:**
+1. Ensure `useBaseFilter` is set to `true` (default)
+2. Verify tenant selection is working in admin UI
+3. Check for custom access control overriding plugin filters
+
+**Example:**
+```typescript
+collections: {
+  pages: {
+    useBaseFilter: true, // Ensure filtering is enabled
+    useTenantAccess: true // Ensure access control is applied
+  }
+}
+```
+
+#### Plugin Not Loading
+
+**Problem:** Multi-tenant functionality not working at all.
+
+**Solution:**
+1. Verify plugin is in the `plugins` array
+2. Check for TypeScript errors in configuration
+3. Ensure all required collections exist
+4. Place plugin after other plugins that modify collections
+
+**Example:**
+```typescript
+export default buildConfig({
+  collections: [Tenants, Users, Pages], // Define collections first
+  plugins: [
+    otherPlugins(), // Other plugins first
+    multiTenantPlugin({}) // Multi-tenant plugin last
+  ]
+})
+```
+
+### Debugging
+
+Enable comprehensive debugging with these techniques:
+
+```typescript
+// 1. Enable debug mode
+multiTenantPlugin({
+  debug: true,
+  // ... other config
+})
+
+// 2. Add logging to access functions
+userHasAccessToAllTenants: (user) => {
+  const isAdmin = user.role === 'super-admin'
+  console.log(`User ${user.email} super admin status:`, isAdmin)
+  return isAdmin
+}
+
+// 3. Monitor tenant changes
+import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+
+const DebugTenantInfo = () => {
+  const { selectedTenantID, options } = useTenantSelection()
+  
+  useEffect(() => {
+    console.log('Current tenant:', selectedTenantID)
+    console.log('Available tenants:', options)
+  }, [selectedTenantID, options])
+  
+  return null
+}
+```
+
+## Performance
+
+### Performance Optimization
+
+#### Database Indexing
+Ensure proper indexing on tenant fields for optimal query performance:
+
+```typescript
+// For collections with tenant fields, create indexes
+{
+  slug: 'pages',
+  fields: [/* fields */],
+  indexes: [
+    {
+      fields: [{ tenant: 1 }], // Index on tenant field
+      unique: false
+    },
+    {
+      fields: [{ tenant: 1, slug: 1 }], // Compound index for common queries
+      unique: true
+    }
+  ]
+}
+```
+
+#### Query Optimization
+Use efficient querying patterns:
+
+```typescript
+// Efficient: Filter at database level
+const pages = await payload.find({
+  collection: 'pages',
+  where: {
+    'tenant.slug': { equals: currentTenant.slug }
+  },
+  limit: 100 // Always use reasonable limits
+})
+
+// Inefficient: Fetching all and filtering in application
+const allPages = await payload.find({ collection: 'pages' })
+const filteredPages = allPages.docs.filter(page => page.tenant.slug === currentTenant.slug)
+```
+
+#### Caching Strategies
+Implement caching for tenant-specific data:
+
+```typescript
+// Cache tenant configurations
+const tenantConfigCache = new Map()
+
+const getTenantConfig = async (tenantId: string) => {
+  if (tenantConfigCache.has(tenantId)) {
+    return tenantConfigCache.get(tenantId)
+  }
+  
+  const tenant = await payload.findByID({
+    collection: 'tenants',
+    id: tenantId
+  })
+  
+  tenantConfigCache.set(tenantId, tenant)
+  return tenant
+}
+```
+
+## Security
+
+### Security Best Practices
+
+1. **Tenant Isolation**: Always verify tenant access in custom code
+2. **Access Control**: Implement proper role-based permissions
+3. **Data Validation**: Validate tenant assignments before operations
+4. **Audit Logging**: Log all tenant-switching activities
+
+```typescript
+// Secure tenant validation
+const validateTenantAccess = (user: User, tenantId: string): boolean => {
+  // Super admins can access all tenants
+  if (userHasAccessToAllTenants(user)) return true
+  
+  // Check user's assigned tenants
+  const userTenants = getUserTenantIDs(user)
+  return userTenants.includes(tenantId)
+}
+
+// Secure document access
+const secureDocumentAccess = {
+  read: ({ req, id }) => {
+    if (!req.user) return false
+    
+    return {
+      or: [
+        // Super admin access
+        { _: userHasAccessToAllTenants(req.user) ? {} : false },
+        // Tenant-specific access
+        { tenant: { in: getUserTenantIDs(req.user) } }
+      ]
+    }
+  }
+}
+```
+
+### Security Warnings
+
+<Banner type="error">
+**Critical Security Considerations**
+
+1. **Tenant Deletion**: The automatic cleanup feature permanently deletes data. Ensure strong access controls on tenant deletion.
+2. **Super Admin Access**: Users with `userHasAccessToAllTenants` permissions can access ALL tenant data.
+3. **Custom Access Control**: When disabling automatic access control, ensure you implement proper security measures.
+4. **Field Visibility**: Debug mode makes tenant fields visible - never enable in production.
+</Banner>
+
+## Example Projects
+
+- [Multi-Tenant SaaS](https://github.com/payloadcms/payload/tree/main/examples/multi-tenant) - Complete multi-tenant application with domain-based routing
+- [Agency Portfolio](https://github.com/payloadcms/payload/tree/main/examples/multi-tenant-agency) - Agency managing multiple client websites
+- [E-commerce Platform](https://github.com/payloadcms/payload/tree/main/examples/multi-tenant-ecommerce) - Multi-store e-commerce implementation
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues/new/choose) or submit a Pull Request.
+
+## License
+
+MIT License. See the [LICENSE](https://github.com/payloadcms/payload/tree/main/packages/plugin-multi-tenant/LICENSE.md) file for details.
