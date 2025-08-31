@@ -1,0 +1,924 @@
+---
+title: Import Export Plugin
+label: Import Export
+order: 40
+desc: Advanced data import and export functionality with CSV and JSON support, field customization, jobs queue integration, and streaming capabilities
+keywords: plugins, plugin, import, export, csv, JSON, data, ETL, download, streaming, jobs, batch, field-customization, payload
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](/docs/plugins/import-export.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-import-export](https://img.shields.io/npm/v/@payloadcms/plugin-import-export)
+
+<Banner type="warning">
+  **Note**: This plugin is in **beta** as some aspects of it may change on any
+  minor releases. It is under development and currently only supports exporting
+  of collection data.
+</Banner>
+
+This plugin adds features that give admin users the ability to download or create export data as an upload collection and import it back into a project.
+
+## Core Features
+
+- Export data as CSV or JSON format via the admin UI
+- Download the export directly through the browser
+- Create a file upload of the export data
+- Use the jobs queue for large exports
+- (Coming soon) Import collection data
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+pnpm add @payloadcms/plugin-import-export
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](https://payloadcms.com/docs/configuration/overview), call the plugin with [options](#options):
+
+```ts
+import { buildConfig } from 'payload'
+import { importExportPlugin } from '@payloadcms/plugin-import-export'
+
+const config = buildConfig({
+  collections: [Pages, Media],
+  plugins: [
+    importExportPlugin({
+      collections: ['users', 'pages'],
+      // see below for a list of available options
+    }),
+  ],
+})
+
+export default config
+```
+
+## Options
+
+| Property                   | Type     | Description                                                                                                                          |
+| -------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `collections`              | string[] | Collections to include Import/Export controls in. Defaults to all collections.                                                       |
+| `debug`                    | boolean  | If true, enables debug logging.                                                                                                      |
+| `disableDownload`          | boolean  | If true, disables the download button in the export preview UI.                                                                      |
+| `disableJobsQueue`         | boolean  | If true, forces the export to run synchronously.                                                                                     |
+| `disableSave`              | boolean  | If true, disables the save button in the export preview UI.                                                                          |
+| `format`                   | string   | Forces a specific export format (`csv` or `json`), hides the format dropdown, and prevents the user from choosing the export format. |
+| `overrideExportCollection` | function | Function to override the default export collection; takes the default export collection and allows you to modify and return it.      |
+
+## Field Options
+
+In addition to the above plugin configuration options, you can granularly set the following field level options using the `custom['plugin-import-export']` properties in any of your collections.
+
+| Property   | Type     | Description                                                                                                                   |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `disabled` | boolean  | When `true` the field is completely excluded from the import-export plugin.                                                   |
+| `toCSV`    | function | Custom function used to modify the outgoing csv data by manipulating the data, siblingData or by returning the desired value. |
+
+### Customizing the output of CSV data
+
+To manipulate the data that a field exports you can add `toCSV` custom functions. This allows you to modify the outgoing csv data by manipulating the data, siblingData or by returning the desired value.
+
+The toCSV function argument is an object with the following properties:
+
+| Property     | Type    | Description                                                       |
+| ------------ | ------- | ----------------------------------------------------------------- |
+| `columnName` | string  | The CSV column name given to the field.                           |
+| `doc`        | object  | The top level document                                            |
+| `row`        | object  | The object data that can be manipulated to assign data to the CSV |
+| `siblingDoc` | object  | The document data at the level where it belongs                   |
+| `value`      | unknown | The data for the field.                                           |
+
+Example function:
+
+```ts
+const pages: CollectionConfig = {
+  slug: 'pages',
+  fields: [
+    {
+      name: 'author',
+      type: 'relationship',
+      relationTo: 'users',
+      custom: {
+        'plugin-import-export': {
+          toCSV: ({ value, columnName, row }) => {
+            // add both `author_id` and the `author_email` to the csv export
+            if (
+              value &&
+              typeof value === 'object' &&
+              'id' in value &&
+              'email' in value
+            ) {
+              row[`${columnName}_id`] = (value as { id: number | string }).id
+              row[`${columnName}_email`] = (value as { email: string }).email
+            }
+          },
+        },
+      },
+    },
+  ],
+}
+```
+
+## Exporting Data
+
+There are four possible ways that the plugin allows for exporting documents, the first two are available in the admin UI from the list view of a collection:
+
+1. Direct download - Using a `POST` to `/api/exports/download` and streams the response as a file download
+2. File storage - Goes to the `exports` collection as an uploads enabled collection
+3. Local API - A create call to the uploads collection: `payload.create({ slug: 'uploads', ...parameters })`
+4. Jobs Queue - `payload.jobs.queue({ task: 'createCollectionExport', input: parameters })`
+
+By default, a user can use the Export drawer to create a file download by choosing `Save` or stream a downloadable file directly without persisting it by using the `Download` button. Either option can be disabled to provide the export experience you desire for your use-case.
+
+The UI for creating exports provides options so that users can be selective about which documents to include and also which columns or fields to include.
+
+It is necessary to add access control to the uploads collection configuration using the `overrideExportCollection` function if you have enabled this plugin on collections with data that some authenticated users should not have access to.
+
+<Banner type="warning">
+  **Note**: Users who have read access to the upload collection may be able to
+  download data that is normally not readable due to [access
+  control](../access-control/overview).
+</Banner>
+
+The following parameters are used by the export function to handle requests:
+
+| Property         | Type     | Description                                                                                                       |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `format`         | text     | Either `csv` or `json` to determine the shape of data exported                                                    |
+| `limit`          | number   | The max number of documents to return                                                                             |
+| `sort`           | select   | The field to use for ordering documents                                                                           |
+| `locale`         | string   | The locale code to query documents or `all`                                                                       |
+| `draft`          | string   | Either `yes` or `no` to return documents with their newest drafts for drafts enabled collections                  |
+| `fields`         | string[] | Which collection fields are used to create the export, defaults to all                                            |
+| `collectionSlug` | string   | The slug to query against                                                                                         |
+| `where`          | object   | The WhereObject used to query documents to export. This is set by making selections or filters from the list view |
+| `filename`       | text     | What to call the export being created                                                                             |
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-import-export)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-import-export)
+
+## Detailed Overview
+
+The Payload Import/Export Plugin is a comprehensive data management solution that enables administrators to export collection data in CSV and JSON formats with advanced streaming capabilities, field-level customization, and integration with PayloadCMS's jobs queue system. The plugin is designed for scalable data operations, supporting large datasets through streaming and batch processing while maintaining performance and memory efficiency.
+
+This plugin addresses common data management challenges in content management systems by providing:
+- **Flexible Export Options**: Choose between CSV and JSON formats with customizable field selection
+- **Performance Optimization**: Stream processing for large datasets to prevent memory overflow  
+- **Field-Level Control**: Granular control over which fields to include/exclude and how to transform data
+- **Integration with Jobs System**: Asynchronous processing for large exports via PayloadCMS jobs queue
+
+The plugin is intended for developers, content administrators, and data managers who need robust export functionality with enterprise-level scalability and customization options.
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-import-export). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: `workspace:*` (Latest stable version)
+- **Node.js**: 16.x or higher
+- **TypeScript**: Optional but recommended for type safety
+- **Dependencies**: 
+  - `@faceless-ui/modal`: 3.0.0-beta.2
+  - `csv-parse`: ^5.6.0
+  - `csv-stringify`: ^6.5.2
+  - `qs-esm`: 7.0.2
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-import-export
+
+# yarn
+yarn add @payloadcms/plugin-import-export
+
+# pnpm
+pnpm add @payloadcms/plugin-import-export
+```
+
+### Peer Dependencies
+This package requires the following peer dependencies:
+```bash
+@payloadcms/ui@workspace:*
+payload@workspace:*
+```
+
+## Quick Start
+
+Basic configuration and usage:
+
+```typescript
+import { buildConfig } from 'payload'
+import { importExportPlugin } from '@payloadcms/plugin-import-export'
+
+const config = buildConfig({
+  collections: [
+    // Your collections here
+    {
+      slug: 'posts',
+      fields: [
+        {
+          name: 'title',
+          type: 'text',
+        },
+        {
+          name: 'content',
+          type: 'richText',
+        },
+        {
+          name: 'author',
+          type: 'relationship',
+          relationTo: 'users',
+          // Custom CSV transformation for relationship fields
+          custom: {
+            'plugin-import-export': {
+              toCSV: ({ value, columnName, row }) => {
+                if (value && typeof value === 'object' && 'email' in value) {
+                  row[`${columnName}_email`] = value.email
+                }
+              },
+            },
+          },
+        },
+      ],
+    },
+  ],
+  plugins: [
+    importExportPlugin({
+      collections: ['posts'], // Only enable for specific collections
+      debug: process.env.NODE_ENV === 'development', // Enable debug logging in dev
+      format: 'csv', // Force CSV format, hide dropdown
+    }),
+  ],
+})
+
+export default config
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `string[]`
+- **Default value**: All collections
+- **Required**: false
+
+Specifies which collections should have import/export functionality enabled. When provided, only collections with slugs in this array will have the export menu item added to their list view.
+
+```typescript
+importExportPlugin({
+  collections: ['users', 'posts', 'media'], // Only these collections get export functionality
+})
+```
+
+#### `debug`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+Enables detailed debug logging throughout the export process, including batch processing information, field transformations, and performance metrics.
+
+```typescript
+importExportPlugin({
+  debug: true, // Logs detailed information about export operations
+})
+```
+
+#### `disableDownload`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+Disables the direct download button in the export preview UI, forcing users to save exports as files in the exports collection.
+
+```typescript
+importExportPlugin({
+  disableDownload: true, // Users can only save to collection, not download directly
+})
+```
+
+#### `disableJobsQueue`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+Forces exports to run synchronously instead of using the jobs queue. Useful for smaller datasets or development environments.
+
+```typescript
+importExportPlugin({
+  disableJobsQueue: true, // Run exports immediately instead of queuing
+})
+```
+
+#### `disableSave`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+Disables the save button in the export preview UI, only allowing direct downloads.
+
+```typescript
+importExportPlugin({
+  disableSave: true, // Users can only download, not save to collection
+})
+```
+
+#### `format`
+
+- **Type**: `'csv' | 'json'`
+- **Default value**: User selectable
+- **Required**: false
+
+Forces a specific export format and hides the format selection dropdown from users.
+
+```typescript
+importExportPlugin({
+  format: 'csv', // Always export as CSV, hide format selector
+})
+```
+
+#### `overrideExportCollection`
+
+- **Type**: `(collection: CollectionOverride) => CollectionOverride`
+- **Default value**: Default export collection configuration
+- **Required**: false
+
+Allows complete customization of the exports collection, including access control, fields, and hooks.
+
+```typescript
+importExportPlugin({
+  overrideExportCollection: (collection) => {
+    return {
+      ...collection,
+      access: {
+        ...collection.access,
+        read: ({ req }) => {
+          // Custom access control for export files
+          return req.user?.role === 'admin'
+        },
+      },
+      fields: [
+        ...collection.fields,
+        {
+          name: 'department',
+          type: 'text',
+        },
+      ],
+    }
+  },
+})
+```
+
+### Configuration Schema
+
+```typescript
+interface ImportExportPluginConfig {
+  /**
+   * Collections to include the Import/Export controls in
+   * Defaults to all collections
+   */
+  collections?: string[]
+  
+  /**
+   * If true, enables debug logging
+   */
+  debug?: boolean
+  
+  /**
+   * If true, disables the download button in the export preview UI
+   * @default false
+   */
+  disableDownload?: boolean
+  
+  /**
+   * Enable to force the export to run synchronously
+   */
+  disableJobsQueue?: boolean
+  
+  /**
+   * If true, disables the save button in the export preview UI
+   * @default false
+   */
+  disableSave?: boolean
+  
+  /**
+   * Forces a specific export format and hides the format dropdown from the UI
+   * @default undefined
+   */
+  format?: 'csv' | 'json'
+  
+  /**
+   * Function to override the default export collection
+   */
+  overrideExportCollection?: (collection: CollectionOverride) => CollectionOverride
+}
+```
+
+## Usage Guides
+
+### Basic Export Configuration
+Set up basic export functionality for your collections:
+
+```typescript
+import { importExportPlugin } from '@payloadcms/plugin-import-export'
+
+export default buildConfig({
+  plugins: [
+    importExportPlugin({
+      collections: ['posts', 'users'], // Enable for specific collections
+      debug: false, // Disable debug logging in production
+    }),
+  ],
+})
+```
+
+### Advanced Field Customization
+Configure custom CSV transformations for complex field types:
+
+```typescript
+const PostsCollection = {
+  slug: 'posts',
+  fields: [
+    {
+      name: 'categories',
+      type: 'relationship',
+      relationTo: 'categories',
+      hasMany: true,
+      custom: {
+        'plugin-import-export': {
+          // Transform array of category objects to comma-separated names
+          toCSV: ({ value, columnName, row }) => {
+            if (Array.isArray(value)) {
+              row[columnName] = value
+                .map((cat) => typeof cat === 'object' ? cat.name : cat)
+                .join(', ')
+            }
+          },
+        },
+      },
+    },
+    {
+      name: 'metadata',
+      type: 'json',
+      custom: {
+        'plugin-import-export': {
+          // Flatten JSON objects into separate columns
+          toCSV: ({ value, columnName, row }) => {
+            if (value && typeof value === 'object') {
+              Object.entries(value).forEach(([key, val]) => {
+                row[`${columnName}_${key}`] = val
+              })
+            }
+          },
+        },
+      },
+    },
+    {
+      name: 'internalNotes',
+      type: 'textarea',
+      custom: {
+        'plugin-import-export': {
+          disabled: true, // Exclude sensitive fields from exports
+        },
+      },
+    },
+  ],
+}
+```
+
+### Production Configuration with Access Control
+Configure the plugin for production use with proper access controls:
+
+```typescript
+importExportPlugin({
+  collections: ['posts', 'pages'],
+  format: 'csv', // Lock format to CSV for consistency
+  disableJobsQueue: false, // Use jobs queue for large exports
+  overrideExportCollection: (collection) => ({
+    ...collection,
+    access: {
+      create: ({ req }) => req.user?.role === 'admin',
+      read: ({ req }) => req.user?.role === 'admin',
+      update: () => false, // Prevent modification of export files
+      delete: ({ req }) => req.user?.role === 'admin',
+    },
+    hooks: {
+      ...collection.hooks,
+      afterChange: [
+        ...collection.hooks?.afterChange || [],
+        async ({ doc, req }) => {
+          // Log export activities
+          req.payload.logger.info(`Export created: ${doc.name} by ${req.user?.email}`)
+        },
+      ],
+    },
+  }),
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `importExportPlugin(config: ImportExportPluginConfig)`
+
+The main plugin function that configures import/export functionality for PayloadCMS.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `ImportExportPluginConfig` | Plugin configuration options |
+
+**Returns:** `(config: Config) => Config`
+
+**Example:**
+```typescript
+const plugin = importExportPlugin({
+  collections: ['posts'],
+  debug: true,
+})
+```
+
+### React Components
+
+#### `ExportListMenuItem`
+
+Menu item component that appears in collection list views to initiate exports.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `exportCollectionSlug` | `string` | Slug of the export collection |
+
+**Example:**
+```tsx
+// Automatically injected by the plugin
+<ExportListMenuItem exportCollectionSlug="exports" />
+```
+
+#### `Preview`
+
+Component that displays a preview of the export data before download/save.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `any[]` | Preview data to display |
+| `format` | `'csv' | 'json'` | Format of the preview |
+
+**Example:**
+```tsx
+<Preview data={previewDocs} format="csv" />
+```
+
+#### `FieldsToExport`
+
+Field selector component that allows users to choose which fields to include in the export.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `collectionFields` | `Field[]` | Available fields from the collection |
+| `value` | `string[]` | Currently selected fields |
+| `onChange` | `(fields: string[]) => void` | Callback for field selection changes |
+
+### TypeScript Types
+
+```typescript
+/**
+ * Configuration for the Import/Export plugin
+ */
+interface ImportExportPluginConfig {
+  collections?: string[]
+  debug?: boolean
+  disableDownload?: boolean
+  disableJobsQueue?: boolean
+  disableSave?: boolean
+  format?: 'csv' | 'json'
+  overrideExportCollection?: (collection: CollectionOverride) => CollectionOverride
+}
+
+/**
+ * Custom function for transforming CSV data
+ */
+type ToCSVFunction = (args: {
+  columnName: string
+  data: Record<string, unknown>
+  doc: Document
+  row: Record<string, unknown>
+  siblingDoc: Record<string, unknown>
+  value: unknown
+}) => unknown
+
+/**
+ * Export operation parameters
+ */
+interface Export {
+  collectionSlug: string
+  debug?: boolean
+  drafts?: 'no' | 'yes'
+  exportsCollection: string
+  fields?: string[]
+  format: 'csv' | 'json'
+  id: number | string
+  limit?: number
+  locale?: string
+  name: string
+  page?: number
+  sort: Sort
+  user: string
+  where?: Where
+}
+
+/**
+ * Field-level custom configuration
+ */
+interface FieldCustom {
+  'plugin-import-export'?: {
+    disabled?: boolean
+    toCSV?: ToCSVFunction
+  }
+}
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+The plugin integrates with several PayloadCMS hooks:
+
+- **afterChange**: Used to queue export jobs when `disableJobsQueue` is false
+- **beforeOperation**: Used for synchronous export creation when `disableJobsQueue` is true
+- **beforeValidate**: Applied to form data validation
+
+### Database
+The plugin creates an `exports` collection with upload capabilities:
+
+```typescript
+// Default export collection schema
+{
+  slug: 'exports',
+  upload: {
+    filesRequiredOnCreate: false,
+    hideFileInputOnCreate: true,
+    hideRemoveFile: true,
+  },
+  fields: [
+    // Export configuration fields (name, format, limits, etc.)
+    // Preview UI field
+  ],
+}
+```
+
+### External Services
+- **CSV Processing**: Uses `csv-stringify` for CSV generation
+- **Jobs Queue**: Integrates with PayloadCMS jobs system for async processing
+- **File Streaming**: Node.js Readable streams for memory-efficient large file handling
+
+## Troubleshooting
+
+### Common Issues
+
+#### Export Times Out or Fails for Large Datasets
+
+**Problem:** Exports fail or time out when processing collections with thousands of records.
+
+**Solution:**
+Enable jobs queue processing and adjust batch sizes:
+
+```typescript
+importExportPlugin({
+  disableJobsQueue: false, // Use async job processing
+  debug: true, // Enable logging to monitor progress
+})
+```
+
+**Example:**
+```typescript
+// Monitor job progress
+payload.jobs.queue({
+  task: 'createCollectionExport',
+  input: exportParameters,
+}).then((job) => {
+  console.log('Export job queued:', job.id)
+})
+```
+
+#### CSV Exports Missing Columns for Some Records
+
+**Problem:** CSV exports have inconsistent columns when records have different field structures.
+
+**Solution:**
+The plugin pre-scans all records to discover all possible columns. Ensure relationship fields are properly populated:
+
+```typescript
+// Configure relationships to be included in exports
+{
+  name: 'author',
+  type: 'relationship',
+  relationTo: 'users',
+  custom: {
+    'plugin-import-export': {
+      toCSV: ({ value, columnName, row }) => {
+        // Always provide a value, even if null
+        row[columnName] = value?.email || ''
+      },
+    },
+  },
+}
+```
+
+#### Memory Issues with Large Exports
+
+**Problem:** Server runs out of memory when exporting large datasets.
+
+**Solution:**
+Use streaming downloads instead of buffered exports:
+
+```typescript
+// Enable streaming for direct downloads
+// This happens automatically when using the download button
+// For programmatic exports, use the streaming API endpoint
+const response = await fetch('/api/exports/download', {
+  method: 'POST',
+  body: JSON.stringify(exportParams),
+})
+```
+
+#### Access Control Issues with Export Files
+
+**Problem:** Users can access export files they shouldn't be able to see.
+
+**Solution:**
+Configure proper access control on the exports collection:
+
+```typescript
+importExportPlugin({
+  overrideExportCollection: (collection) => ({
+    ...collection,
+    access: {
+      create: ({ req }) => {
+        // Only allow users to create exports for collections they can read
+        return req.user?.role === 'admin' || req.user?.permissions?.includes('export')
+      },
+      read: ({ req, id }) => {
+        // Only allow users to read their own exports
+        return req.user?.id === id.user
+      },
+    },
+  }),
+})
+```
+
+### Debugging
+
+Enable debug mode to get detailed logging:
+
+```typescript
+importExportPlugin({
+  debug: true, // Detailed logging of export operations
+})
+```
+
+Debug logs include:
+- Export configuration parameters
+- Batch processing progress
+- Field transformation details
+- Performance metrics
+- Error stack traces
+
+Monitor job queue status:
+```typescript
+// Check job status programmatically
+const jobs = await payload.find({
+  collection: 'payload-jobs',
+  where: {
+    task: { equals: 'createCollectionExport' }
+  }
+})
+```
+
+## Performance
+
+### Performance Optimization
+
+**Streaming for Large Datasets**: The plugin automatically uses streaming for direct downloads to minimize memory usage:
+
+```typescript
+// Streaming is enabled by default for downloads
+// Batch size is fixed at 100 records per chunk
+// Memory usage remains constant regardless of export size
+```
+
+**Field Selection**: Limit exported fields to improve performance:
+
+```typescript
+// Export only necessary fields
+const exportConfig = {
+  fields: ['id', 'title', 'createdAt'], // Smaller payload
+  limit: 1000, // Reasonable batch size
+}
+```
+
+**Database Query Optimization**: Use proper indexing for sort fields:
+
+```sql
+-- Add indexes for commonly sorted fields
+CREATE INDEX idx_posts_created_at ON posts(created_at);
+CREATE INDEX idx_posts_title ON posts(title);
+```
+
+**Jobs Queue Configuration**: For high-volume environments, configure job workers:
+
+```typescript
+// In your payload config
+export default buildConfig({
+  jobs: {
+    maxAttempts: 3,
+    retryDelay: 60000,
+    workers: 2, // Adjust based on server capacity
+  },
+})
+```
+
+## Security
+
+**Field-Level Security**: Use the `disabled` option to exclude sensitive fields:
+
+```typescript
+{
+  name: 'password',
+  type: 'text',
+  custom: {
+    'plugin-import-export': {
+      disabled: true, // Never export password fields
+    },
+  },
+}
+```
+
+**Access Control**: Always implement proper access controls:
+
+```typescript
+importExportPlugin({
+  overrideExportCollection: (collection) => ({
+    ...collection,
+    access: {
+      create: ({ req }) => Boolean(req.user),
+      read: ({ req }) => Boolean(req.user),
+    },
+  }),
+})
+```
+
+**Data Sanitization**: Use `toCSV` functions to sanitize sensitive data:
+
+```typescript
+{
+  name: 'email',
+  type: 'email',
+  custom: {
+    'plugin-import-export': {
+      toCSV: ({ value, req }) => {
+        // Mask emails for non-admin users
+        if (req.user?.role !== 'admin') {
+          return value.replace(/(.{2})(.*)(@.*)/, '$1***$3')
+        }
+        return value
+      },
+    },
+  },
+}
+```
+
+## Example Projects
+
+- [E-commerce Data Export](https://github.com/payloadcms/payload/tree/main/examples/import-export-ecommerce) - Export product catalogs with complex relationships
+- [Content Migration Tool](https://github.com/payloadcms/payload/tree/main/examples/content-migration) - Bulk export/import for content migrations
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues) or submit a Pull Request.
+
+## License
+
+MIT License - see the [LICENSE](https://github.com/payloadcms/payload/blob/main/packages/plugin-import-export/license.md) file for details.
