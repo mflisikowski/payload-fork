@@ -1,0 +1,778 @@
+---
+title: Nodemailer Email Adapter
+label: email-nodemailer
+order: 10
+desc: Official Nodemailer email adapter for PayloadCMS - send emails using SMTP, external services, or test accounts with full TypeScript support
+keywords: [nodemailer, email, smtp, adapter, payload, transporter, ethereal, test-account]
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from the original README.md file.
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+# Nodemailer Email Adapter for Payload
+
+This adapter allows you to send emails using the [Nodemailer](https://nodemailer.com/) library.
+
+It abstracts all of the email functionality that was in Payload by default in 2.x into a separate package.
+
+**NOTE:** Configuring email in Payload 3.0 is now completely optional. However, you will receive a startup warning that email is not configured and also a message if you attempt to send an email.
+
+## Installation
+
+```sh
+pnpm add @payloadcms/email-nodemailer nodemailer
+```
+
+## Usage
+
+### Using nodemailer.createTransport
+
+```ts
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+import nodemailer from 'nodemailer'
+
+export default buildConfig({
+  email: nodemailerAdapter({
+    defaultFromAddress: 'info@payloadcms.com',
+    defaultFromName: 'Payload',
+    // Any Nodemailer transport
+    transport: await nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: 587,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    }),
+  }),
+})
+```
+
+### Using transportOptions
+
+```ts
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+export default buildConfig({
+  email: nodemailerAdapter({
+    defaultFromAddress: 'info@payloadcms.com',
+    defaultFromName: 'Payload',
+    // Nodemailer transportOptions
+    transportOptions: {
+      host: process.env.SMTP_HOST,
+      port: 587,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    },
+  }),
+})
+```
+
+During development, if you pass nothing to `nodemailerAdapter`, it will use the [ethereal.email](https://ethereal.email) service.
+
+This will log the ethereal.email details to console on startup.
+
+```ts
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+export default buildConfig({
+  email: nodemailerAdapter(), // This will be the old ethereal.email functionality
+})
+```
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/email-nodemailer)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/email-nodemailer)
+
+## Detailed Overview
+
+The **@payloadcms/email-nodemailer** package is the official email adapter for PayloadCMS that integrates the powerful Nodemailer library for sending emails. This adapter provides a flexible and production-ready solution for handling email communications in your PayloadCMS applications.
+
+**Key Features:**
+- **SMTP Support**: Connect to any SMTP server or email service provider
+- **Test Account Integration**: Automatic Ethereal.email test accounts for development
+- **Transport Verification**: Built-in transport verification with optional skip functionality
+- **TypeScript Support**: Full TypeScript definitions and type safety
+- **Flexible Configuration**: Support for both pre-configured transports and transport options
+
+**What Problems It Solves:**
+- Abstracts email complexity from PayloadCMS core (moved from 2.x built-in functionality)
+- Provides a consistent email interface across different transport methods
+- Simplifies development with automatic test account creation
+- Ensures reliable email delivery with transport verification
+
+**Who It's For:**
+- PayloadCMS developers needing email functionality
+- Applications requiring transactional emails (user registration, password resets, notifications)
+- Development teams wanting reliable email testing without external dependencies
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/email-nodemailer). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (peer dependency)
+- **Node.js**: ^18.20.2 || >=20.9.0
+- **TypeScript**: Supported with full type definitions
+- **Nodemailer**: 6.9.16 (automatically installed)
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/email-nodemailer
+
+# yarn
+yarn add @payloadcms/email-nodemailer
+
+# pnpm
+pnpm add @payloadcms/email-nodemailer
+```
+
+### Peer Dependencies
+This package requires PayloadCMS as a peer dependency:
+```bash
+# The adapter requires PayloadCMS to be installed
+pnpm add payload
+```
+
+## Quick Start
+
+Basic configuration with SMTP:
+
+```typescript
+import { buildConfig } from 'payload/config'
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+export default buildConfig({
+  // ... other config
+  email: nodemailerAdapter({
+    defaultFromAddress: 'noreply@yourapp.com',
+    defaultFromName: 'Your App Name',
+    transportOptions: {
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: true, // true for 465, false for other ports
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    },
+  }),
+  // ... rest of config
+})
+```
+
+### Environment Variables
+```bash
+SMTP_HOST=smtp.your-provider.com
+SMTP_PORT=465
+SMTP_USER=your-username
+SMTP_PASS=your-password
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `defaultFromAddress`
+
+- **Type**: `string`
+- **Required**: true (except when using no config for Ethereal)
+
+The default email address that will be used as the sender for all outgoing emails.
+
+```typescript
+email: nodemailerAdapter({
+  defaultFromAddress: 'support@myapp.com', // All emails will come from this address
+  // ... other options
+})
+```
+
+#### `defaultFromName`
+
+- **Type**: `string`
+- **Required**: true (except when using no config for Ethereal)
+
+The default name that will appear as the sender name in email clients.
+
+```typescript
+email: nodemailerAdapter({
+  defaultFromAddress: 'support@myapp.com',
+  defaultFromName: 'MyApp Support Team', // This appears as the sender name
+  // ... other options
+})
+```
+
+#### `transport`
+
+- **Type**: `Transporter` (from Nodemailer)
+- **Required**: false
+- **Mutually exclusive with**: `transportOptions`
+
+A pre-configured Nodemailer transporter instance. Use this when you need full control over the transport configuration or want to reuse an existing transporter.
+
+```typescript
+import nodemailer from 'nodemailer'
+
+const customTransport = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: 'yourapp@gmail.com',
+    pass: 'your-app-password',
+  },
+  pool: true, // Enable connection pooling
+  maxConnections: 5,
+  maxMessages: 100,
+})
+
+email: nodemailerAdapter({
+  defaultFromAddress: 'yourapp@gmail.com',
+  defaultFromName: 'Your App',
+  transport: customTransport, // Use the pre-configured transport
+})
+```
+
+#### `transportOptions`
+
+- **Type**: `SMTPConnection.Options` (from Nodemailer)
+- **Required**: false
+- **Mutually exclusive with**: `transport`
+
+SMTP connection options that will be passed to `nodemailer.createTransport()`. This is the simpler approach when you just need to configure SMTP settings.
+
+```typescript
+email: nodemailerAdapter({
+  defaultFromAddress: 'noreply@myapp.com',
+  defaultFromName: 'My App',
+  transportOptions: {
+    host: 'smtp.sendgrid.net',
+    port: 587,
+    secure: false,
+    auth: {
+      user: 'apikey',
+      pass: process.env.SENDGRID_API_KEY,
+    },
+    // Additional options
+    connectionTimeout: 2 * 60 * 1000, // 2 minutes
+    greetingTimeout: 30 * 1000, // 30 seconds
+    socketTimeout: 10 * 60 * 1000, // 10 minutes
+  },
+})
+```
+
+#### `skipVerify`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+When `false` (default), the adapter will verify the transport connection during initialization. Set to `true` to skip verification, useful for development or when the SMTP server isn't available during startup.
+
+```typescript
+email: nodemailerAdapter({
+  defaultFromAddress: 'test@example.com',
+  defaultFromName: 'Test App',
+  transportOptions: { /* ... */ },
+  skipVerify: true, // Skip transport verification for faster startup
+})
+```
+
+### Configuration Schema
+
+```typescript
+export type NodemailerAdapterArgs = {
+  // Required sender information (except when using Ethereal)
+  defaultFromAddress: string
+  defaultFromName: string
+
+  // Optional transport verification control
+  skipVerify?: boolean
+
+  // Choose one of these transport methods:
+
+  // Option 1: Pre-configured Nodemailer transport
+  transport?: Transporter
+
+  // Option 2: SMTP connection options (will create transport automatically)
+  transportOptions?: SMTPConnection.Options
+
+  // Option 3: No transport specified = Ethereal.email test account
+}
+
+// The adapter function returns a Promise of EmailAdapter
+type NodemailerAdapter = EmailAdapter<unknown>
+```
+
+## Usage Guides
+
+### Production SMTP Configuration
+
+For production applications, use a reliable SMTP service provider:
+
+```typescript
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+export default buildConfig({
+  email: nodemailerAdapter({
+    defaultFromAddress: 'noreply@yourapp.com',
+    defaultFromName: 'Your Production App',
+    transportOptions: {
+      host: 'smtp.mailgun.org', // or your provider
+      port: 587,
+      secure: false, // upgrade later with STARTTLS
+      auth: {
+        user: process.env.MAILGUN_SMTP_LOGIN,
+        pass: process.env.MAILGUN_SMTP_PASSWORD,
+      },
+      // Production optimizations
+      pool: true, // use connection pooling
+      maxConnections: 5,
+      maxMessages: 100,
+      rateDelta: 1000, // rate limiting: 1000ms between messages
+      rateLimit: 5, // max 5 messages per rateDelta
+    },
+  }),
+})
+```
+
+### Development with Ethereal Email
+
+For development and testing, use the built-in Ethereal.email integration:
+
+```typescript
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+export default buildConfig({
+  email: nodemailerAdapter(), // No configuration = Ethereal test account
+})
+```
+
+When you start your application, you'll see console output like:
+```
+E-mail configured with ethereal.email test account.
+Log into mock email provider at https://ethereal.email/messages/[message-id]
+Mock email account username: [generated-username]
+Mock email account password: [generated-password]
+```
+
+### Advanced Patterns
+
+#### Gmail with OAuth2
+
+For Gmail integration using OAuth2:
+
+```typescript
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+import nodemailer from 'nodemailer'
+
+const transport = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    type: 'OAuth2',
+    user: process.env.GMAIL_ADDRESS,
+    clientId: process.env.OAUTH2_CLIENT_ID,
+    clientSecret: process.env.OAUTH2_CLIENT_SECRET,
+    refreshToken: process.env.OAUTH2_REFRESH_TOKEN,
+    accessToken: process.env.OAUTH2_ACCESS_TOKEN,
+  },
+})
+
+export default buildConfig({
+  email: nodemailerAdapter({
+    defaultFromAddress: process.env.GMAIL_ADDRESS,
+    defaultFromName: 'My App via Gmail',
+    transport,
+  }),
+})
+```
+
+#### Multiple Email Configurations
+
+You can conditionally use different email configurations based on environment:
+
+```typescript
+import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+
+const emailConfig = process.env.NODE_ENV === 'production'
+  ? {
+      defaultFromAddress: 'noreply@myapp.com',
+      defaultFromName: 'MyApp',
+      transportOptions: {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT),
+        secure: true,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      },
+    }
+  : undefined // Use Ethereal in development
+
+export default buildConfig({
+  email: nodemailerAdapter(emailConfig),
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `nodemailerAdapter(args?: NodemailerAdapterArgs)`
+
+Creates and configures a PayloadCMS email adapter using Nodemailer.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `args` | `NodemailerAdapterArgs` | false | Configuration object. If omitted, creates Ethereal test account |
+| `args.defaultFromAddress` | `string` | true* | Default sender email address |
+| `args.defaultFromName` | `string` | true* | Default sender name |
+| `args.skipVerify` | `boolean` | false | Skip transport verification (default: false) |
+| `args.transport` | `Transporter` | false | Pre-configured Nodemailer transport |
+| `args.transportOptions` | `SMTPConnection.Options` | false | SMTP options for transport creation |
+
+*Required when `args` is provided
+
+**Returns:** `Promise<NodemailerAdapter>`
+
+**Example:**
+```typescript
+// With SMTP configuration
+const adapter = await nodemailerAdapter({
+  defaultFromAddress: 'hello@myapp.com',
+  defaultFromName: 'MyApp',
+  transportOptions: {
+    host: 'smtp.myapp.com',
+    port: 587,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  },
+})
+
+// With Ethereal test account
+const testAdapter = await nodemailerAdapter()
+```
+
+### Internal Functions
+
+#### `buildEmail(emailConfig?: NodemailerAdapterArgs)`
+
+Internal function that builds the email configuration and transport.
+
+**Returns:**
+```typescript
+Promise<{
+  defaultFromAddress: string
+  defaultFromName: string
+  transport: Transporter
+}>
+```
+
+#### `verifyTransport(transport: Transporter)`
+
+Internal function that verifies the transport connection.
+
+#### `createMockAccount(emailConfig?: NodemailerAdapterArgs)`
+
+Internal function that creates an Ethereal.email test account when no transport is configured.
+
+### TypeScript Types
+
+```typescript
+// Main configuration type
+export type NodemailerAdapterArgs = {
+  defaultFromAddress: string
+  defaultFromName: string
+  skipVerify?: boolean
+  transport?: Transporter
+  transportOptions?: SMTPConnection.Options
+}
+
+// Adapter type (extends PayloadCMS EmailAdapter)
+type NodemailerAdapter = EmailAdapter<unknown>
+
+// The adapter implements this interface:
+interface EmailAdapter<T = unknown> {
+  name: string
+  defaultFromAddress: string
+  defaultFromName: string
+  sendEmail: (message: EmailMessage) => Promise<T>
+}
+
+// Email message structure (from PayloadCMS)
+interface EmailMessage {
+  to: string | string[]
+  subject: string
+  html?: string
+  text?: string
+  from?: string
+  replyTo?: string
+  cc?: string | string[]
+  bcc?: string | string[]
+  attachments?: Array<{
+    filename: string
+    content: Buffer | string
+    contentType?: string
+  }>
+}
+```
+
+## Integrations
+
+### PayloadCMS Email System
+
+This adapter integrates seamlessly with PayloadCMS's email system. Once configured, PayloadCMS will use it for:
+
+- **User Authentication**: Password reset emails, email verification
+- **Admin Notifications**: Form submissions, user registrations
+- **Custom Emails**: Using `payload.sendEmail()` API
+
+```typescript
+// Using the email system in your PayloadCMS app
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'Welcome to our app!',
+  html: '<h1>Welcome!</h1><p>Thanks for joining us.</p>',
+})
+```
+
+### External Services
+
+Compatible with major email service providers:
+
+- **SendGrid**: SMTP or API integration
+- **Mailgun**: SMTP integration
+- **Amazon SES**: SMTP integration
+- **Gmail**: SMTP with app passwords or OAuth2
+- **Postmark**: SMTP integration
+- **Any SMTP server**: Custom SMTP configurations
+
+## Troubleshooting
+
+### Common Issues
+
+#### Authentication Failed
+
+**Problem:** `Error: Invalid login: Username and password not accepted`
+
+**Solution:**
+1. Verify your SMTP credentials are correct
+2. Check if your email provider requires app-specific passwords
+3. Ensure you're using the correct SMTP server and port
+
+```typescript
+// For Gmail, use app passwords instead of regular password
+transportOptions: {
+  service: 'gmail', // or host: 'smtp.gmail.com'
+  port: 587,
+  secure: false,
+  auth: {
+    user: 'your-email@gmail.com',
+    pass: 'your-16-character-app-password', // Not your regular password
+  },
+}
+```
+
+#### Connection Timeout
+
+**Problem:** `Error: Connection timeout`
+
+**Solution:**
+1. Check your firewall settings
+2. Verify the SMTP host and port are correct
+3. Try different ports (587, 465, 25)
+4. Increase connection timeout
+
+```typescript
+transportOptions: {
+  host: 'smtp.your-provider.com',
+  port: 587,
+  connectionTimeout: 60000, // 60 seconds
+  greetingTimeout: 30000,   // 30 seconds
+  socketTimeout: 60000,     // 60 seconds
+}
+```
+
+#### Self-Signed Certificate Error
+
+**Problem:** `Error: self signed certificate in certificate chain`
+
+**Solution:**
+For development environments only, you can bypass certificate validation:
+
+```typescript
+transportOptions: {
+  host: 'your-smtp-server.com',
+  port: 587,
+  secure: false,
+  tls: {
+    rejectUnauthorized: false, // Only for development!
+  },
+}
+```
+
+#### Rate Limiting Issues
+
+**Problem:** Emails are being rate-limited or rejected
+
+**Solution:**
+Configure connection pooling and rate limiting:
+
+```typescript
+transportOptions: {
+  // ... other options
+  pool: true,
+  maxConnections: 5,
+  maxMessages: 100,
+  rateDelta: 1000, // 1 second between messages
+  rateLimit: 5,    // max 5 messages per second
+}
+```
+
+### Debugging
+
+Enable debug logging to troubleshoot issues:
+
+```typescript
+transportOptions: {
+  // ... other options
+  debug: true, // Enable debug logging
+  logger: true, // Log to console
+}
+```
+
+For custom debugging, you can also wrap the transport:
+
+```typescript
+import nodemailer from 'nodemailer'
+
+const transport = nodemailer.createTransport({
+  // ... your config
+})
+
+// Add event listeners for debugging
+transport.on('error', (error) => {
+  console.error('Transport error:', error)
+})
+
+transport.on('idle', () => {
+  console.log('Transport is idle')
+})
+
+email: nodemailerAdapter({
+  defaultFromAddress: 'test@example.com',
+  defaultFromName: 'Test',
+  transport,
+})
+```
+
+## Performance
+
+### Performance Optimization
+
+#### Connection Pooling
+
+Enable connection pooling for high-volume email sending:
+
+```typescript
+transportOptions: {
+  // ... auth config
+  pool: true,                    // Enable pooling
+  maxConnections: 5,             // Max concurrent connections
+  maxMessages: 100,              // Messages per connection before cycling
+  rateDelta: 1000,               // Time window for rate limiting (ms)
+  rateLimit: 5,                  // Max messages per rateDelta
+}
+```
+
+#### Batch Processing
+
+For large email campaigns, consider batching:
+
+```typescript
+// Example batch processing
+const emailBatch = async (recipients: string[], message: EmailMessage) => {
+  const batchSize = 10
+
+  for (let i = 0; i < recipients.length; i += batchSize) {
+    const batch = recipients.slice(i, i + batchSize)
+
+    await Promise.all(
+      batch.map(recipient =>
+        payload.sendEmail({
+          ...message,
+          to: recipient,
+        })
+      )
+    )
+
+    // Small delay between batches to avoid overwhelming the server
+    await new Promise(resolve => setTimeout(resolve, 1000))
+  }
+}
+```
+
+## Security
+
+### Security Best Practices
+
+1. **Environment Variables**: Always store credentials in environment variables, never in code
+2. **Secure Connections**: Use TLS/SSL when possible (`secure: true` for port 465)
+3. **Authentication**: Use strong passwords or OAuth2 for email providers
+4. **Rate Limiting**: Implement rate limiting to prevent abuse
+5. **Input Validation**: Validate email addresses and content before sending
+
+```typescript
+// Secure configuration example
+transportOptions: {
+  host: process.env.SMTP_HOST,
+  port: 465,
+  secure: true, // Use SSL
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS, // Use environment variables
+  },
+  tls: {
+    ciphers: 'SSLv3', // Force secure ciphers
+  },
+}
+```
+
+### Avoiding Common Vulnerabilities
+
+- **Email Injection**: PayloadCMS and Nodemailer automatically escape email headers
+- **SMTP Injection**: Validate all user inputs before including in emails
+- **Credential Exposure**: Never log or expose SMTP credentials in error messages
+
+## Example Projects
+
+- [PayloadCMS E-commerce](https://github.com/payloadcms/payload/tree/main/examples/ecommerce) - Full e-commerce with email notifications
+- [PayloadCMS Blog](https://github.com/payloadcms/payload/tree/main/examples/blog) - Blog with email subscriptions
+- [PayloadCMS Auth](https://github.com/payloadcms/payload/tree/main/examples/auth) - Authentication system with email verification
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues) or submit a Pull Request.
+
+## License
+
+MIT License - see [LICENSE.md](./LICENSE.md) for details.

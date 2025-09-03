@@ -1,0 +1,1443 @@
+---
+title: SEO Plugin
+label: SEO
+order: 100
+desc: Manage SEO metadata from your Payload admin with auto-generation, real-time preview, and comprehensive optimization features
+keywords: plugins, seo, meta, search, engine, ranking, google, optimization, metadata, title, description, image, preview
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](https://github.com/payloadcms/payload/tree/main/docs/plugins/seo.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-seo](https://img.shields.io/npm/v/@payloadcms/plugin-seo)
+
+This plugin allows you to easily manage SEO metadata for your application from within your [Admin Panel](../admin/overview). When enabled on your [Collections](../configuration/collections) and [Globals](../configuration/globals), it adds a new `meta` field group containing `title`, `description`, and `image` by default. Your front-end application can then use this data to render meta tags however your application requires. For example, you would inject a `title` tag into the `<head>` of your page using `meta.title` as its content.
+
+As users are editing documents within the Admin Panel, they have the option to "auto-generate" these fields. When clicked, this plugin will execute your own custom functions that re-generate the title, description, and image. This way you can build your own SEO writing assistance directly into your application. For example, you could append your site name onto the page title, or use the document's excerpt field as the description, or even integrate with some third-party API to generate the image using AI.
+
+To help you visualize what your page might look like in a search engine, a preview is rendered on the page just beneath the meta fields. This preview is updated in real-time as you edit your metadata. There are also visual indicators to help you write effective meta, such as a character counter for the title and description fields. You can even inject your own custom fields into the `meta` field group as your application requires, like `og:title` or `json-ld`. If you've ever used something like Yoast SEO, this plugin might feel very familiar.
+
+<Banner type="info">
+  This plugin is completely open-source and the [source code can be found
+  here](https://github.com/payloadcms/payload/tree/main/packages/plugin-seo). If
+  you need help, check out our [Community
+  Help](https://payloadcms.com/community-help). If you think you've found a bug,
+  please [open a new
+  issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%20seo&template=bug_report.md&title=plugin-seo%3A)
+  with as much detail as possible.
+</Banner>
+
+## Core features
+
+- Adds a `meta` field group to every SEO-enabled collection or global
+- Allows you to define custom functions to auto-generate metadata
+- Displays hints and indicators to help content editor write effective meta
+- Renders a snippet of what a search engine might display
+- Extendable so you can define custom fields like `og:title` or `json-ld`
+- Soon will support dynamic variable injection
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+  pnpm add @payloadcms/plugin-seo
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](../configuration/overview), call the plugin with [options](#options):
+
+```ts
+import { buildConfig } from 'payload';
+import { seoPlugin } from '@payloadcms/plugin-seo';
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'pages',
+      fields: []
+    },
+    {
+      slug: 'media',
+      upload: {
+        staticDir: // path to your static directory,
+      },
+      fields: []
+    }
+  ],
+  plugins: [
+    seoPlugin({
+      collections: [
+        'pages',
+      ],
+      uploadsCollection: 'media',
+      generateTitle: ({ doc }) => `Website.com — ${doc.title}`,
+      generateDescription: ({ doc }) => doc.excerpt
+    })
+  ]
+});
+
+export default config;
+```
+
+### Options
+
+##### `collections`
+
+An array of collections slugs to enable SEO. Enabled collections receive a `meta` field which is an object of title, description, and image subfields.
+
+##### `globals`
+
+An array of global slugs to enable SEO. Enabled globals receive a `meta` field which is an object of title, description, and image subfields.
+
+##### `fields`
+
+A function that takes in the default fields via an object and expects an array of fields in return. You can use this to modify existing fields or add new ones.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    fields: ({ defaultFields }) => [
+      ...defaultFields,
+      {
+        name: 'customField',
+        type: 'text',
+      },
+    ],
+  })
+}
+```
+
+##### `uploadsCollection`
+
+Set the `uploadsCollection` to your application's upload-enabled collection slug. This is used to provide an `image` field on the `meta` field group.
+
+##### `tabbedUI`
+
+When the `tabbedUI` property is `true`, it appends an `SEO` tab onto your config using Payload's [Tabs Field](../fields/tabs). If your collection is not already tab-enabled, meaning the first field in your config is not of type `tabs`, then one will be created for you called `Content`. Defaults to `false`.
+Note that the order of plugins or fields in your config may affect whether or not the plugin can smartly merge tabs with your existing fields. If you have a complex structure we recommend you [make use of the fields directly](#direct-use-of-fields) instead of relying on this config option.
+
+<Banner type="info">
+  If you wish to continue to use top-level or sidebar fields with `tabbedUI`,
+  you must not let the default `Content` tab get created for you (see the note
+  above). Instead, you must define the first field of your config with type
+  `tabs` and place all other fields adjacent to this one.
+</Banner>
+
+##### `generateTitle`
+
+A function that allows you to return any meta title, including from the document's content.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    generateTitle: ({ doc }) => `Website.com — ${doc?.title}`,
+  })
+}
+```
+
+All "generate" functions receive the following arguments:
+
+| Argument                   | Description                                                           |
+| -------------------------- | --------------------------------------------------------------------- |
+| **`collectionConfig`**     | The configuration of the collection.                                  |
+| **`collectionSlug`**       | The slug of the collection.                                           |
+| **`doc`**                  | The data of the current document.                                     |
+| **`docPermissions`**       | The permissions of the document.                                      |
+| **`globalConfig`**         | The configuration of the global.                                      |
+| **`globalSlug`**           | The slug of the global.                                               |
+| **`hasPublishPermission`** | Whether the user has permission to publish the document.              |
+| **`hasSavePermission`**    | Whether the user has permission to save the document.                 |
+| **`id`**                   | The ID of the document.                                               |
+| **`initialData`**          | The initial data of the document.                                     |
+| **`initialState`**         | The initial state of the document.                                    |
+| **`locale`**               | The locale of the document.                                           |
+| **`preferencesKey`**       | The preferences key of the document.                                  |
+| **`publishedDoc`**         | The published document.                                               |
+| **`req`**                  | The Payload request object containing `user`, `payload`, `i18n`, etc. |
+| **`title`**                | The title of the document.                                            |
+| **`versionsCount`**        | The number of versions of the document.                               |
+
+##### `generateDescription`
+
+A function that allows you to return any meta description, including from the document's content.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    generateDescription: ({ doc }) => doc?.excerpt,
+  })
+}
+```
+
+For a full list of arguments, see the [`generateTitle`](#generatetitle) function.
+
+##### `generateImage`
+
+A function that allows you to return any meta image, including from the document's content.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    generateImage: ({ doc }) => doc?.featuredImage,
+  })
+}
+```
+
+For a full list of arguments, see the [`generateTitle`](#generatetitle) function.
+
+##### `generateURL`
+
+A function called by the search preview component to display the actual URL of your page.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    generateURL: ({ doc, collectionSlug }) =>
+      `https://yoursite.com/${collectionSlug}/${doc?.slug}`,
+  })
+}
+```
+
+For a full list of arguments, see the [`generateTitle`](#generatetitle) function.
+
+#### `interfaceName`
+
+Rename the meta group interface name that is generated for TypeScript and GraphQL.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  seoPlugin({
+    interfaceName: 'customInterfaceNameSEO',
+  })
+}
+```
+
+## Direct use of fields
+
+There is the option to directly import any of the fields from the plugin so that you can include them anywhere as needed.
+
+<Banner type="info">
+  You will still need to configure the plugin in the Payload Config in order to
+  configure the generation functions. Since these fields are imported and used
+  directly, they don't have access to the plugin config so they may need
+  additional arguments to work the same way.
+</Banner>
+
+```ts
+import {
+  MetaDescriptionField,
+  MetaImageField,
+  MetaTitleField,
+  OverviewField,
+  PreviewField,
+} from '@payloadcms/plugin-seo/fields'
+
+// Used as fields
+MetaImageField({
+  // the upload collection slug
+  relationTo: 'media',
+
+  // if the `generateImage` function is configured
+  hasGenerateFn: true,
+})
+
+MetaDescriptionField({
+  // if the `generateDescription` function is configured
+  hasGenerateFn: true,
+})
+
+MetaTitleField({
+  // if the `generateTitle` function is configured
+  hasGenerateFn: true,
+})
+
+PreviewField({
+  // if the `generateUrl` function is configured
+  hasGenerateFn: true,
+
+  // field paths to match the target field for data
+  titlePath: 'meta.title',
+  descriptionPath: 'meta.description',
+})
+
+ OverviewField({
+  // field paths to match the target field for data
+  titlePath: 'meta.title',
+  descriptionPath: 'meta.description',
+  imagePath: 'meta.image',
+})
+```
+
+<Banner type="info">
+  Tip: You can override the length rules by changing the minLength and maxLength
+  props on the fields. In the case of the OverviewField you can use
+  `titleOverrides` and `descriptionOverrides` to override the length rules.
+</Banner>
+
+## TypeScript
+
+All types can be directly imported:
+
+```ts
+import type {
+  PluginConfig,
+  GenerateTitle,
+  GenerateDescription
+  GenerateURL
+} from '@payloadcms/plugin-seo/types';
+```
+
+You can then pass the collections from your generated Payload types into the generation types, for example:
+
+```ts
+import type { Page } from './payload-types.ts'
+
+import type { GenerateTitle } from '@payloadcms/plugin-seo/types'
+
+const generateTitle: GenerateTitle<Page> = async ({ doc, locale }) => {
+  return `Website.com — ${doc?.title}`
+}
+```
+
+## Examples
+
+The [Templates Directory](https://github.com/payloadcms/payload/tree/main/templates) contains an official [Website Template](https://github.com/payloadcms/payload/tree/main/templates/website) and [E-commerce Template](https://github.com/payloadcms/payload/tree/main/templates/ecommere) which demonstrates exactly how to configure this plugin in Payload and implement it on your front-end.
+
+## Screenshots
+
+![image](https://user-images.githubusercontent.com/70709113/163850633-f3da5f8e-2527-4688-bc79-17233307a883.png)
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-seo)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-seo)
+
+## Detailed Overview
+
+The PayloadCMS SEO Plugin is a comprehensive solution for managing search engine optimization metadata directly within the Payload admin interface. This plugin transforms SEO management from a manual, error-prone process into an integrated, user-friendly experience that guides content creators toward SEO best practices.
+
+The plugin addresses the critical need for consistent, high-quality SEO metadata across websites and applications. Search engine optimization requires careful attention to title length, description quality, image optimization, and structured data—tasks that are often overlooked or handled inconsistently. By integrating SEO management into the content creation workflow, this plugin ensures that every piece of content receives proper SEO attention.
+
+Content creators, developers, and SEO professionals benefit from this plugin's intuitive interface and automated features. The real-time preview shows exactly how content will appear in search results, while length indicators and quality hints guide users toward optimal SEO practices. Advanced users can leverage the plugin's extensibility to add custom fields, integrate with AI-powered content generation, or implement sophisticated SEO automation workflows.
+
+Key benefits include improved search engine rankings through consistent metadata, reduced time spent on SEO tasks, better collaboration between content and SEO teams, and comprehensive SEO coverage across all content types. The plugin's modular design allows teams to start simple and gradually add complexity as their SEO needs evolve.
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-seo). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (latest version recommended)
+- **Node.js**: Compatible with Payload requirements
+- **React**: ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+- **React DOM**: ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-seo
+
+# yarn
+yarn add @payloadcms/plugin-seo
+
+# pnpm
+pnpm add @payloadcms/plugin-seo
+```
+
+### Peer Dependencies
+This package requires the following peer dependencies:
+```bash
+payload workspace:*
+react ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+react-dom ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+```
+
+## Quick Start
+
+Basic configuration and usage:
+
+```typescript
+import { buildConfig } from 'payload'
+import { seoPlugin } from '@payloadcms/plugin-seo'
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'pages',
+      fields: [
+        {
+          name: 'title',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'content',
+          type: 'richText',
+        },
+      ],
+    },
+    {
+      slug: 'media',
+      upload: {
+        staticDir: './media',
+      },
+      fields: [],
+    },
+  ],
+  plugins: [
+    seoPlugin({
+      collections: ['pages'],
+      uploadsCollection: 'media',
+      generateTitle: ({ doc }) => `${doc?.title} | My Website`,
+      generateDescription: ({ doc }) => 
+        doc?.content?.length > 0 
+          ? doc.content.substring(0, 160) 
+          : 'Default description',
+      generateURL: ({ doc, collectionSlug }) => 
+        `https://mywebsite.com/${collectionSlug}/${doc?.slug}`,
+    }),
+  ],
+})
+
+export default config
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `CollectionSlug[]`
+- **Default value**: `undefined`
+- **Required**: false
+
+Specifies which collections should include SEO fields. Each enabled collection receives a `meta` field group containing title, description, and image fields.
+
+```typescript
+collections: ['pages', 'posts', 'products']
+```
+
+#### `globals`
+
+- **Type**: `GlobalSlug[]`
+- **Default value**: `undefined`  
+- **Required**: false
+
+Specifies which globals should include SEO fields, typically used for site-wide SEO settings like homepage metadata.
+
+```typescript
+globals: ['settings', 'homepage']
+```
+
+#### `fields`
+
+- **Type**: `FieldsOverride`
+- **Default value**: Default SEO fields (title, description, image, preview)
+- **Required**: false
+
+Allows customization of the SEO field group by providing a function that receives default fields and returns modified fields.
+
+```typescript
+fields: ({ defaultFields }) => [
+  ...defaultFields,
+  {
+    name: 'keywords',
+    type: 'text',
+    admin: {
+      description: 'Comma-separated list of keywords (optional)',
+    },
+  },
+  {
+    name: 'canonical',
+    type: 'text',
+    admin: {
+      description: 'Canonical URL to prevent duplicate content issues',
+    },
+  },
+  {
+    name: 'robots',
+    type: 'select',
+    defaultValue: 'index,follow',
+    options: [
+      { label: 'Index, Follow', value: 'index,follow' },
+      { label: 'No Index, Follow', value: 'noindex,follow' },
+      { label: 'Index, No Follow', value: 'index,nofollow' },
+      { label: 'No Index, No Follow', value: 'noindex,nofollow' },
+    ],
+  },
+]
+```
+
+#### `uploadsCollection`
+
+- **Type**: `UploadCollectionSlug`
+- **Default value**: `undefined`
+- **Required**: false (required if you want image SEO fields)
+
+Specifies the upload collection used for SEO images. This enables the meta image field and file upload functionality.
+
+```typescript
+uploadsCollection: 'media'
+```
+
+#### `tabbedUI`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+When enabled, organizes SEO fields into a dedicated tab, improving the admin interface organization for content with many fields.
+
+```typescript
+tabbedUI: true
+```
+
+#### `generateTitle`
+
+- **Type**: `GenerateTitle<T>`
+- **Default value**: `undefined`
+- **Required**: false
+
+Function that automatically generates SEO titles based on document content. Provides intelligent title creation with access to full document context.
+
+```typescript
+generateTitle: ({ doc, collectionSlug, locale }) => {
+  const siteName = 'My Website'
+  const separator = ' | '
+  
+  // Different title strategies per collection
+  switch (collectionSlug) {
+    case 'posts':
+      return `${doc?.title}${separator}${siteName} Blog`
+    case 'products':
+      const price = doc?.price ? ` - $${doc.price}` : ''
+      return `${doc?.name}${price}${separator}${siteName}`
+    case 'pages':
+      return doc?.slug === 'home' 
+        ? `${siteName} - Your trusted partner` 
+        : `${doc?.title}${separator}${siteName}`
+    default:
+      return `${doc?.title}${separator}${siteName}`
+  }
+}
+```
+
+#### `generateDescription`
+
+- **Type**: `GenerateDescription<T>`
+- **Default value**: `undefined`
+- **Required**: false
+
+Function for automatic description generation, with access to rich text content and document metadata for creating compelling descriptions.
+
+```typescript
+generateDescription: ({ doc, collectionSlug }) => {
+  // Extract text content from rich text fields
+  const extractTextFromRichText = (richText) => {
+    if (!richText || !richText.length) return ''
+    
+    return richText
+      .map(node => {
+        if (node.type === 'paragraph' && node.children) {
+          return node.children.map(child => child.text || '').join('')
+        }
+        return ''
+      })
+      .filter(text => text.length > 0)
+      .join(' ')
+      .substring(0, 160)
+  }
+  
+  // Collection-specific description logic
+  if (collectionSlug === 'posts') {
+    return doc?.excerpt || extractTextFromRichText(doc?.content) || 'Read our latest blog post'
+  }
+  
+  if (collectionSlug === 'products') {
+    const features = doc?.features?.join(', ')
+    const baseDescription = doc?.shortDescription || extractTextFromRichText(doc?.description)
+    return features ? `${baseDescription}. Features: ${features}` : baseDescription
+  }
+  
+  return doc?.excerpt || extractTextFromRichText(doc?.content) || 'Learn more about this page'
+}
+```
+
+#### `generateImage`
+
+- **Type**: `GenerateImage<T>`
+- **Default value**: `undefined`
+- **Required**: false
+
+Automatically selects appropriate images for SEO metadata, with fallback logic and image optimization considerations.
+
+```typescript
+generateImage: ({ doc, collectionSlug }) => {
+  // Priority order for image selection
+  const imageFields = ['heroImage', 'featuredImage', 'thumbnail', 'image']
+  
+  for (const fieldName of imageFields) {
+    if (doc?.[fieldName]) {
+      return doc[fieldName]
+    }
+  }
+  
+  // Collection-specific fallbacks
+  if (collectionSlug === 'posts' && doc?.author?.avatar) {
+    return doc.author.avatar
+  }
+  
+  if (collectionSlug === 'products' && doc?.gallery?.length > 0) {
+    return doc.gallery[0]
+  }
+  
+  // Return default site image or null
+  return null // or your default SEO image
+}
+```
+
+#### `generateURL`
+
+- **Type**: `GenerateURL<T>`
+- **Default value**: `undefined`
+- **Required**: false
+
+Generates URLs for SEO preview, supporting complex routing patterns and localization.
+
+```typescript
+generateURL: ({ doc, collectionSlug, locale, globalSlug }) => {
+  const baseURL = process.env.PAYLOAD_PUBLIC_SITE_URL || 'https://yoursite.com'
+  const localePrefix = locale && locale !== 'en' ? `/${locale}` : ''
+  
+  if (globalSlug) {
+    return baseURL // Globals typically represent the homepage
+  }
+  
+  switch (collectionSlug) {
+    case 'pages':
+      return `${baseURL}${localePrefix}/${doc?.slug === 'home' ? '' : doc?.slug}`
+    case 'posts':
+      return `${baseURL}${localePrefix}/blog/${doc?.slug}`
+    case 'products':
+      const category = doc?.category?.slug || 'products'
+      return `${baseURL}${localePrefix}/${category}/${doc?.slug}`
+    default:
+      return `${baseURL}${localePrefix}/${collectionSlug}/${doc?.slug}`
+  }
+}
+```
+
+#### `interfaceName`
+
+- **Type**: `string`
+- **Default value**: `undefined`
+- **Required**: false
+
+Customizes the TypeScript interface name for the meta field group to prevent naming conflicts.
+
+```typescript
+interfaceName: 'CustomSEOMeta'
+```
+
+### Configuration Schema
+
+```typescript
+interface SEOPluginConfig {
+  // Collections and globals to enable
+  collections?: CollectionSlug[]
+  globals?: GlobalSlug[]
+  
+  // UI configuration
+  tabbedUI?: boolean
+  interfaceName?: string
+  
+  // Field customization
+  fields?: FieldsOverride
+  uploadsCollection?: UploadCollectionSlug
+  
+  // Auto-generation functions
+  generateTitle?: GenerateTitle
+  generateDescription?: GenerateDescription
+  generateImage?: GenerateImage
+  generateURL?: GenerateURL
+}
+
+// Generation function type
+type GenerateTitle<T = any> = (args: {
+  doc: T
+  collectionConfig?: CollectionConfig
+  globalConfig?: GlobalConfig
+  locale?: string
+  req: PayloadRequest
+  // Additional context from DocumentInfoContext
+  collectionSlug?: CollectionSlug
+  globalSlug?: GlobalSlug
+  id?: string | number
+  title?: string
+}) => Promise<string> | string
+
+// Field override function
+type FieldsOverride = (args: { 
+  defaultFields: Field[] 
+}) => Field[]
+
+// Meta interface
+interface Meta {
+  title?: string
+  description?: string
+  image?: any
+  keywords?: string
+  // Additional custom fields based on configuration
+}
+```
+
+## Usage Guides
+
+### Setting Up Basic SEO for a Blog
+Complete setup for a blog with automated SEO generation:
+
+```typescript
+import { buildConfig } from 'payload'
+import { seoPlugin } from '@payloadcms/plugin-seo'
+
+export default buildConfig({
+  collections: [
+    {
+      slug: 'posts',
+      fields: [
+        { name: 'title', type: 'text', required: true },
+        { name: 'slug', type: 'text', required: true },
+        { name: 'excerpt', type: 'textarea' },
+        { name: 'content', type: 'richText' },
+        { name: 'featuredImage', type: 'upload', relationTo: 'media' },
+        { name: 'author', type: 'relationship', relationTo: 'users' },
+        { name: 'publishedDate', type: 'date' },
+      ],
+    },
+    {
+      slug: 'media',
+      upload: { staticDir: './media' },
+      fields: [],
+    },
+  ],
+  plugins: [
+    seoPlugin({
+      collections: ['posts'],
+      uploadsCollection: 'media',
+      tabbedUI: true,
+      generateTitle: ({ doc }) => `${doc?.title} | My Blog`,
+      generateDescription: ({ doc }) => 
+        doc?.excerpt || 
+        `Read "${doc?.title}" published on ${new Date(doc?.publishedDate).toLocaleDateString()}`,
+      generateImage: ({ doc }) => doc?.featuredImage,
+      generateURL: ({ doc }) => `https://myblog.com/posts/${doc?.slug}`,
+    }),
+  ],
+})
+```
+
+### E-commerce SEO Configuration
+Advanced configuration for product pages with dynamic pricing and category information:
+
+```typescript
+seoPlugin({
+  collections: ['products', 'categories', 'pages'],
+  uploadsCollection: 'media',
+  tabbedUI: true,
+  fields: ({ defaultFields }) => [
+    ...defaultFields,
+    {
+      name: 'schema',
+      type: 'textarea',
+      admin: {
+        description: 'JSON-LD structured data for rich snippets',
+      },
+    },
+    {
+      name: 'priority',
+      type: 'select',
+      defaultValue: '0.5',
+      options: [
+        { label: 'Low (0.1)', value: '0.1' },
+        { label: 'Normal (0.5)', value: '0.5' },
+        { label: 'High (0.8)', value: '0.8' },
+        { label: 'Critical (1.0)', value: '1.0' },
+      ],
+    },
+  ],
+  generateTitle: ({ doc, collectionSlug }) => {
+    if (collectionSlug === 'products') {
+      const price = doc?.price ? ` - $${doc.price}` : ''
+      const availability = doc?.stock > 0 ? ' | In Stock' : ' | Out of Stock'
+      return `${doc?.name}${price}${availability} | Shop Now`
+    }
+    return `${doc?.title} | My Store`
+  },
+  generateDescription: ({ doc, collectionSlug }) => {
+    if (collectionSlug === 'products') {
+      const features = doc?.features?.slice(0, 3).join(', ')
+      const rating = doc?.averageRating ? ` | ${doc.averageRating}⭐` : ''
+      return `${doc?.shortDescription}${features ? ` Features: ${features}.` : ''}${rating} Free shipping available.`
+    }
+    return doc?.description || 'Shop quality products with fast shipping'
+  },
+})
+```
+
+### Advanced Patterns
+
+#### Multi-language SEO Support
+Configuration for internationalized websites with locale-specific SEO:
+
+```typescript
+seoPlugin({
+  collections: ['pages', 'posts'],
+  uploadsCollection: 'media',
+  generateTitle: ({ doc, locale, collectionSlug }) => {
+    const siteNames = {
+      en: 'My Website',
+      es: 'Mi Sitio Web',
+      fr: 'Mon Site Web',
+    }
+    
+    const siteName = siteNames[locale] || siteNames.en
+    
+    if (collectionSlug === 'posts') {
+      const blogTitles = {
+        en: 'Blog',
+        es: 'Blog',
+        fr: 'Blog',
+      }
+      return `${doc?.title} | ${blogTitles[locale] || blogTitles.en} | ${siteName}`
+    }
+    
+    return `${doc?.title} | ${siteName}`
+  },
+  generateURL: ({ doc, locale, collectionSlug }) => {
+    const baseURL = 'https://mywebsite.com'
+    const localePrefix = locale && locale !== 'en' ? `/${locale}` : ''
+    
+    return `${baseURL}${localePrefix}/${collectionSlug}/${doc?.slug}`
+  },
+})
+```
+
+#### AI-Powered SEO Generation
+Integration with AI services for automated content optimization:
+
+```typescript
+import OpenAI from 'openai'
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+seoPlugin({
+  collections: ['posts'],
+  generateTitle: async ({ doc }) => {
+    if (process.env.NODE_ENV === 'production' && doc?.content) {
+      try {
+        const response = await openai.chat.completions.create({
+          model: 'gpt-3.5-turbo',
+          messages: [{
+            role: 'user',
+            content: `Create an SEO-optimized title (max 60 characters) for this blog post: "${doc.title}". Content summary: ${doc.excerpt || 'No excerpt available'}`,
+          }],
+          max_tokens: 60,
+        })
+        
+        return response.choices[0]?.message?.content?.trim() || `${doc.title} | My Blog`
+      } catch (error) {
+        console.error('AI title generation failed:', error)
+        return `${doc.title} | My Blog`
+      }
+    }
+    
+    return `${doc.title} | My Blog`
+  },
+  generateDescription: async ({ doc }) => {
+    // Similar AI-powered description generation
+    return doc?.excerpt || 'Read our latest blog post'
+  },
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `seoPlugin(config)`
+
+Main plugin factory function that adds SEO capabilities to Payload collections and globals.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `config` | `SEOPluginConfig` | Plugin configuration object |
+
+**Returns:** `(config: Config) => Config`
+
+**Example:**
+```typescript
+const plugin = seoPlugin({
+  collections: ['pages'],
+  generateTitle: ({ doc }) => `${doc?.title} | My Site`,
+})
+```
+
+### React Components
+
+#### `MetaTitleComponent`
+
+Interactive title field component with length validation and auto-generation capabilities.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `hasGenerateTitleFn` | `boolean` | Whether auto-generation is available |
+| Standard text field props | - | Inherits from Payload text field |
+
+**Features:**
+- Real-time character count (50-60 character recommendation)
+- Visual length indicators (too short, good, too long)
+- Auto-generation button when `generateTitle` function is configured
+- Localization support
+
+#### `MetaDescriptionComponent`
+
+Textarea component optimized for meta descriptions with SEO guidance.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `hasGenerateDescriptionFn` | `boolean` | Whether auto-generation is available |
+| Standard textarea field props | - | Inherits from Payload textarea field |
+
+**Features:**
+- Character count for optimal length (100-150 characters)
+- Auto-generation capabilities
+- SEO best practices hints
+
+#### `MetaImageComponent`
+
+Upload field component specifically designed for SEO images.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `hasGenerateImageFn` | `boolean` | Whether auto-generation is available |
+| `relationTo` | `string` | Upload collection slug |
+
+**Features:**
+- File size recommendations (< 500KB)
+- Auto-generation from document images
+- Image optimization tips
+
+#### `PreviewComponent`
+
+Live search result preview showing how content appears in search engines.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `titlePath` | `string` | Path to title field (default: 'meta.title') |
+| `descriptionPath` | `string` | Path to description field (default: 'meta.description') |
+| `hasGenerateURLFn` | `boolean` | Whether URL generation is available |
+
+**Features:**
+- Real-time Google search result preview
+- Dynamic URL generation
+- Character count validation
+- Mobile and desktop preview modes
+
+#### `OverviewComponent`
+
+Comprehensive SEO status overview with actionable insights.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `titlePath` | `string` | Path to title field |
+| `descriptionPath` | `string` | Path to description field |
+| `imagePath` | `string` | Path to image field |
+| `titleOverrides` | `{ minLength?: number, maxLength?: number }` | Custom title length rules |
+| `descriptionOverrides` | `{ minLength?: number, maxLength?: number }` | Custom description length rules |
+
+**Features:**
+- SEO checklist with passing/failing indicators
+- Progress tracking
+- Best practices recommendations
+
+### Utility Components
+
+#### `LengthIndicator`
+
+Visual progress bar and status indicator for text field optimization.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `text` | `string` | Text to analyze |
+| `minLength` | `number` | Minimum recommended length |
+| `maxLength` | `number` | Maximum recommended length |
+
+**Example:**
+```tsx
+<LengthIndicator 
+  text="My page title"
+  minLength={50}
+  maxLength={60}
+/>
+```
+
+#### `Pill`
+
+Status indicator component for SEO quality assessment.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `label` | `string` | Status text |
+| `backgroundColor` | `string` | Background color |
+| `color` | `string` | Text color |
+
+### TypeScript Types
+
+```typescript
+// Main plugin configuration
+export interface SEOPluginConfig {
+  collections?: CollectionSlug[]
+  globals?: GlobalSlug[]
+  fields?: FieldsOverride
+  uploadsCollection?: UploadCollectionSlug
+  tabbedUI?: boolean
+  interfaceName?: string
+  generateTitle?: GenerateTitle
+  generateDescription?: GenerateDescription
+  generateImage?: GenerateImage
+  generateURL?: GenerateURL
+}
+
+// Generation function types
+export type GenerateTitle<T = any> = (
+  args: {
+    doc: T
+    collectionConfig?: CollectionConfig
+    globalConfig?: GlobalConfig
+    locale?: string
+    req: PayloadRequest
+  } & PartialDocumentInfoContext,
+) => Promise<string> | string
+
+export type GenerateDescription<T = any> = (
+  args: {
+    doc: T
+    collectionConfig?: CollectionConfig
+    globalConfig?: GlobalConfig
+    locale?: string
+    req: PayloadRequest
+  } & PartialDocumentInfoContext,
+) => Promise<string> | string
+
+export type GenerateImage<T = any> = (
+  args: {
+    doc: T
+    collectionConfig?: CollectionConfig
+    globalConfig?: GlobalConfig
+    locale?: string
+    req: PayloadRequest
+  } & PartialDocumentInfoContext,
+) => Promise<string> | string
+
+export type GenerateURL<T = any> = (
+  args: {
+    doc: T
+    collectionConfig?: CollectionConfig
+    globalConfig?: GlobalConfig
+    locale?: string
+    req: PayloadRequest
+  } & PartialDocumentInfoContext,
+) => Promise<string> | string
+
+// Field override function
+export type FieldsOverride = (args: { 
+  defaultFields: Field[] 
+}) => Field[]
+
+// Meta data structure
+export interface Meta {
+  title?: string
+  description?: string
+  image?: any
+  keywords?: string
+  // Additional fields based on configuration
+}
+
+// Document context for generation functions
+export type PartialDocumentInfoContext = Pick<
+  DocumentInfoContext,
+  | 'collectionSlug'
+  | 'docPermissions'
+  | 'globalSlug'
+  | 'hasPublishedDoc'
+  | 'hasPublishPermission'
+  | 'hasSavePermission'
+  | 'id'
+  | 'initialData'
+  | 'initialState'
+  | 'preferencesKey'
+  | 'title'
+  | 'versionCount'
+>
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+The plugin integrates seamlessly with Payload's hook system:
+
+- **Field-level hooks**: Custom validation and transformation for SEO fields
+- **Collection hooks**: Auto-populate SEO data on document save
+- **API endpoints**: Provides REST endpoints for auto-generation functions
+
+### Auto-generation Endpoints
+The plugin automatically creates the following API endpoints:
+
+- `POST /api/plugin-seo/generate-title` - Generate SEO title
+- `POST /api/plugin-seo/generate-description` - Generate SEO description  
+- `POST /api/plugin-seo/generate-image` - Generate SEO image
+- `POST /api/plugin-seo/generate-url` - Generate preview URL
+
+### External Services
+Common integration patterns:
+
+**Analytics Integration:**
+```typescript
+generateTitle: async ({ doc, req }) => {
+  // Log SEO events to analytics
+  await req.payload.logger.info('SEO title generated', {
+    document: doc.id,
+    collection: req.collection?.config.slug,
+  })
+  
+  return `${doc?.title} | My Site`
+}
+```
+
+**Content Management Integration:**
+```typescript
+generateDescription: async ({ doc }) => {
+  // Extract from rich text content
+  const textContent = extractPlainText(doc?.content)
+  return textContent?.substring(0, 160) + '...' || 'Default description'
+}
+```
+
+### Internationalization
+The plugin includes comprehensive translation support for 25+ languages:
+
+```typescript
+// Supported languages
+en, es, fr, de, it, pt, ru, ja, ko, zh, ar, nl, sv, da, no, 
+fi, pl, cs, hu, ro, bg, hr, sl, sk, et, lv, lt, uk, vi, th, my, fa, he
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Auto-generation Functions Not Working
+
+**Problem:** Generate buttons appear but don't work, or functions are never called.
+
+**Solution:**
+Ensure generation functions are properly configured and async/await is handled correctly:
+
+```typescript
+// ❌ Incorrect - missing async/await
+generateTitle: ({ doc }) => {
+  return fetchTitleFromAPI(doc.id) // Returns Promise<string>
+}
+
+// ✅ Correct - proper async handling  
+generateTitle: async ({ doc }) => {
+  try {
+    return await fetchTitleFromAPI(doc.id)
+  } catch (error) {
+    console.error('Title generation failed:', error)
+    return `${doc?.title} | Fallback Title`
+  }
+}
+```
+
+#### Length Indicators Showing Incorrect Colors
+
+**Problem:** Length indicators don't reflect actual SEO best practices or show wrong status colors.
+
+**Solution:**
+Customize length limits using field overrides or default configurations:
+
+```typescript
+// Custom length limits
+fields: ({ defaultFields }) => [
+  {
+    name: 'title',
+    type: 'text',
+    admin: {
+      components: {
+        Field: {
+          clientProps: {
+            hasGenerateTitleFn: true,
+          },
+          path: '@payloadcms/plugin-seo/client#MetaTitleComponent',
+        },
+      },
+    },
+    minLength: 40, // Custom minimum
+    maxLength: 70, // Custom maximum
+  },
+  // ... other fields
+]
+```
+
+#### Tabbed UI Not Working Correctly
+
+**Problem:** SEO tab doesn't appear or conflicts with existing tabs.
+
+**Solution:**
+Ensure proper tab configuration and field ordering:
+
+```typescript
+// If you have existing tabs, don't use tabbedUI
+// Instead, manually add SEO fields to your tabs
+{
+  name: 'content',
+  type: 'tabs',
+  tabs: [
+    {
+      label: 'Content',
+      fields: [
+        // Your existing fields
+      ],
+    },
+    {
+      label: 'SEO',
+      fields: [
+        {
+          name: 'meta',
+          type: 'group',
+          fields: [
+            MetaTitleField({ hasGenerateFn: true }),
+            MetaDescriptionField({ hasGenerateFn: true }),
+            // ... other SEO fields
+          ],
+        },
+      ],
+    },
+  ],
+}
+```
+
+#### TypeScript Type Conflicts
+
+**Problem:** `Error: Schema must contain uniquely named types but contains multiple types named "Meta"`
+
+**Solution:**
+Use `interfaceName` to resolve type conflicts:
+
+```typescript
+seoPlugin({
+  interfaceName: 'SEOMeta', // Custom interface name
+  collections: ['pages'],
+})
+```
+
+#### Preview Component Not Updating
+
+**Problem:** Search preview doesn't update when fields change or shows incorrect data.
+
+**Solution:**
+Verify field paths and ensure proper data binding:
+
+```typescript
+PreviewField({
+  titlePath: 'meta.title', // Ensure this matches your field structure
+  descriptionPath: 'meta.description',
+  hasGenerateFn: Boolean(pluginConfig.generateURL),
+})
+```
+
+### Debugging
+
+Enable detailed logging for troubleshooting:
+
+```typescript
+// In your Payload config
+export default buildConfig({
+  debug: true,
+  logger: {
+    level: 'debug',
+  },
+  plugins: [
+    seoPlugin({
+      generateTitle: async ({ doc, req }) => {
+        req.payload.logger.debug('Generating SEO title', {
+          documentId: doc?.id,
+          title: doc?.title,
+        })
+        
+        const generated = `${doc?.title} | My Site`
+        
+        req.payload.logger.debug('Generated SEO title', {
+          result: generated,
+        })
+        
+        return generated
+      },
+    }),
+  ],
+})
+```
+
+Monitor client-side issues with browser dev tools:
+```javascript
+// Check for client-side errors in browser console
+// Look for network failures to generation endpoints
+// Verify field paths and data structure in React DevTools
+```
+
+## Performance
+
+### Performance Optimization
+
+**Lazy Loading for Large Collections:**
+```typescript
+generateTitle: async ({ doc, collectionSlug }) => {
+  // Cache expensive operations
+  const cache = new Map()
+  const cacheKey = `title-${collectionSlug}-${doc?.id}`
+  
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey)
+  }
+  
+  const title = await expensiveTitleGeneration(doc)
+  cache.set(cacheKey, title)
+  
+  return title
+}
+```
+
+**Optimize Image Processing:**
+```typescript
+generateImage: async ({ doc }) => {
+  // Only process images when necessary
+  if (!doc?.needsImageProcessing) {
+    return doc?.existingImage
+  }
+  
+  // Implement image optimization/compression
+  return await optimizeImage(doc?.rawImage)
+}
+```
+
+**Batch Operations:**
+```typescript
+// Use Payload's batch operations for bulk SEO updates
+const bulkUpdateSEO = async (payload, documents) => {
+  return Promise.all(
+    documents.map(doc => 
+      payload.update({
+        collection: 'posts',
+        id: doc.id,
+        data: {
+          meta: {
+            title: generateTitle({ doc }),
+            description: generateDescription({ doc }),
+          },
+        },
+      })
+    )
+  )
+}
+```
+
+## Security
+
+**Input Sanitization:**
+Always sanitize generated content to prevent XSS:
+
+```typescript
+import DOMPurify from 'isomorphic-dompurify'
+
+generateDescription: ({ doc }) => {
+  const description = extractTextFromRichText(doc?.content)
+  // Sanitize any HTML content
+  return DOMPurify.sanitize(description).substring(0, 160)
+}
+```
+
+**Rate Limiting for AI Services:**
+```typescript
+import { RateLimiter } from 'limiter'
+
+const limiter = new RateLimiter({ tokensPerInterval: 10, interval: 'minute' })
+
+generateTitle: async ({ doc }) => {
+  await limiter.removeTokens(1)
+  return await aiService.generateTitle(doc?.content)
+}
+```
+
+**Environment Variable Security:**
+```typescript
+// Never expose API keys in client-side code
+generateTitle: async ({ doc, req }) => {
+  // Server-side only operations
+  if (typeof window !== 'undefined') {
+    throw new Error('This function must run server-side only')
+  }
+  
+  return await externalAPI.call({
+    apiKey: process.env.SECRET_API_KEY, // Server-side only
+    content: doc?.content,
+  })
+}
+```
+
+## Example Projects
+
+- [Personal Blog with SEO](https://github.com/payloadcms/payload-examples/tree/main/blog-seo) - Complete blog setup with automated SEO
+- [E-commerce Store](https://github.com/payloadcms/payload-examples/tree/main/ecommerce-seo) - Product catalog with structured data
+- [Multi-language Website](https://github.com/payloadcms/payload-examples/tree/main/i18n-seo) - International SEO implementation
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%20seo&template=bug_report.md&title=plugin-seo%3A) or submit a Pull Request.
+
+## License
+
+MIT License - see the LICENSE.md file for details.

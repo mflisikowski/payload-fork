@@ -1,0 +1,653 @@
+---
+title: Vercel Blob Storage Adapter
+label: Storage Vercel Blob
+order: 40
+desc: Official Payload CMS storage adapter for Vercel Blob Storage with support for client uploads, server uploads, and advanced caching
+keywords: [vercel, blob, storage, adapter, payloadcms, cloud, upload, client, server, cache]
+---
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/storage-vercel-blob)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/storage-vercel-blob)
+
+## Overview
+
+The Vercel Blob Storage adapter is the official PayloadCMS integration for [Vercel Blob Storage](https://vercel.com/docs/storage/vercel-blob), providing seamless file storage and retrieval with automatic CDN distribution. This package replaces the need for `@payloadcms/plugin-cloud-storage` that was required in Payload 2.x.
+
+Key features include:
+- **Automatic CDN distribution** through Vercel's global edge network
+- **Client-side uploads** to bypass Vercel's 4.5MB server upload limits
+- **Server-side uploads** for traditional workflow compatibility
+- **Advanced caching** with configurable Cache-Control headers
+- **File prefix support** for organized storage structure
+- **Random suffix generation** to prevent filename conflicts
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/storage-vercel-blob). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (compatible with Payload 3.x)
+- **Node.js**: ^18.20.2 || >=20.9.0
+- **TypeScript**: Supported with full type definitions
+- **Vercel Blob Storage**: Active Vercel project with Blob Storage enabled
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/storage-vercel-blob
+
+# yarn
+yarn add @payloadcms/storage-vercel-blob
+
+# pnpm
+pnpm add @payloadcms/storage-vercel-blob
+```
+
+### Dependencies
+This package depends on:
+- `@payloadcms/plugin-cloud-storage`: Internal cloud storage abstractions
+- `@vercel/blob`: Official Vercel Blob SDK (v0.22.3+)
+
+## Quick Start
+
+Basic configuration with server uploads:
+
+```typescript
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
+import { buildConfig } from 'payload'
+
+export default buildConfig({
+  collections: [
+    {
+      slug: 'media',
+      upload: true,
+      fields: [
+        {
+          name: 'alt',
+          type: 'text',
+        },
+      ],
+    },
+  ],
+  plugins: [
+    vercelBlobStorage({
+      collections: {
+        media: true, // Enable for 'media' collection
+      },
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    }),
+  ],
+})
+```
+
+### Environment Variables
+```bash
+# Provided by Vercel when Blob Storage is enabled
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_<store_id>_<random_string>
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `Partial<Record<UploadCollectionSlug, Omit<CollectionOptions, 'adapter'> | true>>`
+- **Required**: `true`
+
+Specifies which upload collections should use Vercel Blob storage. Can be a simple boolean or an object with additional configuration.
+
+```typescript
+vercelBlobStorage({
+  collections: {
+    // Simple enablement
+    media: true,
+    
+    // With prefix configuration
+    'user-uploads': {
+      prefix: 'users', // Files stored under /users/ path
+    },
+    
+    // Multiple collections
+    avatars: {
+      prefix: 'avatars',
+    },
+  },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+})
+```
+
+#### `token`
+
+- **Type**: `string | undefined`
+- **Required**: `true`
+- **Default**: `undefined`
+
+Vercel Blob storage read/write token. Must follow the format `vercel_blob_rw_<store_id>_<random_string>`.
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN, // Recommended
+  // token: 'vercel_blob_rw_abc123_xyz789', // Direct value (not recommended)
+})
+```
+
+#### `enabled`
+
+- **Type**: `boolean`
+- **Default**: `true`
+- **Required**: `false`
+
+Enables or disables the plugin. When disabled, collections fall back to local storage.
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  enabled: process.env.NODE_ENV === 'production', // Only in production
+})
+```
+
+#### `addRandomSuffix`
+
+- **Type**: `boolean`
+- **Default**: `false`
+- **Required**: `false`
+
+Adds a random suffix to uploaded filenames to prevent conflicts and enable cache busting.
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  addRandomSuffix: true, // file.jpg becomes file-abc123.jpg
+})
+```
+
+#### `cacheControlMaxAge`
+
+- **Type**: `number`
+- **Default**: `365 * 24 * 60 * 60` (1 year in seconds)
+- **Required**: `false`
+
+Sets the Cache-Control max-age header for served files.
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  cacheControlMaxAge: 86400, // 24 hours
+})
+```
+
+#### `clientUploads`
+
+- **Type**: `ClientUploadsConfig`
+- **Default**: `undefined`
+- **Required**: `false`
+
+Enables client-side uploads to bypass Vercel's 4.5MB server upload limit.
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  clientUploads: {
+    access: ({ collectionSlug, req }) => {
+      // Custom access control for client uploads
+      return req.user?.role === 'admin'
+    },
+  },
+})
+```
+
+#### `access`
+
+- **Type**: `'public'`
+- **Default**: `'public'`
+- **Required**: `false`
+
+Access control level for stored blobs. Currently only 'public' is supported.
+
+### Configuration Schema
+
+```typescript
+interface VercelBlobStorageOptions {
+  /**
+   * Access control level. Currently, only 'public' is supported.
+   */
+  access?: 'public'
+
+  /**
+   * Add a random suffix to the uploaded file name in Vercel Blob storage
+   */
+  addRandomSuffix?: boolean
+
+  /**
+   * Cache-Control max-age in seconds
+   */
+  cacheControlMaxAge?: number
+
+  /**
+   * Do uploads directly on the client, to bypass limits on Vercel.
+   */
+  clientUploads?: ClientUploadsConfig
+
+  /**
+   * Collections to apply the Vercel Blob adapter to
+   */
+  collections: Partial<Record<UploadCollectionSlug, Omit<CollectionOptions, 'adapter'> | true>>
+
+  /**
+   * Whether or not to enable the plugin
+   */
+  enabled?: boolean
+
+  /**
+   * Vercel Blob storage read/write token
+   */
+  token: string | undefined
+}
+```
+
+## Usage Guides
+
+### Basic Server Upload Setup
+For most use cases with files under 4.5MB:
+
+```typescript
+import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
+
+export default buildConfig({
+  collections: [
+    {
+      slug: 'media',
+      upload: {
+        staticDir: 'media', // Not used when Vercel Blob is active
+        imageSizes: [
+          {
+            name: 'thumbnail',
+            width: 400,
+            height: 300,
+            position: 'centre',
+          },
+        ],
+      },
+      fields: [
+        {
+          name: 'alt',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+  ],
+  plugins: [
+    vercelBlobStorage({
+      collections: {
+        media: true,
+      },
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    }),
+  ],
+})
+```
+
+### Client Upload Setup for Large Files
+For files larger than 4.5MB or to improve upload performance:
+
+```typescript
+vercelBlobStorage({
+  collections: {
+    media: true,
+  },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  clientUploads: {
+    // Custom access control (optional)
+    access: ({ collectionSlug, req }) => {
+      // Allow authenticated users to upload
+      return Boolean(req.user)
+    },
+  },
+})
+```
+
+### Multi-Collection with Prefixes
+Organize files by collection or purpose:
+
+```typescript
+vercelBlobStorage({
+  collections: {
+    media: {
+      prefix: 'general',
+    },
+    'user-avatars': {
+      prefix: 'avatars',
+    },
+    'product-images': {
+      prefix: 'products',
+    },
+  },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  addRandomSuffix: true, // Prevent conflicts across collections
+})
+```
+
+### Advanced Patterns
+
+#### Environment-Based Configuration
+```typescript
+const isProduction = process.env.NODE_ENV === 'production'
+
+vercelBlobStorage({
+  collections: {
+    media: true,
+  },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  enabled: isProduction, // Only use Vercel Blob in production
+  cacheControlMaxAge: isProduction ? 31536000 : 3600, // 1 year prod, 1 hour dev
+  addRandomSuffix: isProduction,
+})
+```
+
+#### Conditional Client Uploads
+```typescript
+vercelBlobStorage({
+  collections: {
+    media: true,
+  },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  clientUploads: process.env.ENABLE_CLIENT_UPLOADS === 'true' ? {
+    access: ({ req }) => Boolean(req.user),
+  } : undefined,
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `vercelBlobStorage(options: VercelBlobStorageOptions)`
+
+Creates and configures the Vercel Blob storage plugin.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `options` | `VercelBlobStorageOptions` | Plugin configuration options |
+
+**Returns:** `Plugin` - Configured Payload plugin
+
+**Example:**
+```typescript
+const plugin = vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+})
+```
+
+### React Components
+
+#### `VercelBlobClientUploadHandler`
+
+Client-side upload handler for browser-based uploads.
+
+**Props:**
+| Prop | Type | Description |
+|------|------|-------------|
+| `addRandomSuffix` | `boolean` | Whether to add random suffix to filenames |
+| `baseURL` | `string` | Base URL for the Vercel Blob storage |
+| `prefix` | `string` | File path prefix |
+
+**Example:**
+```tsx
+// Automatically configured when clientUploads is enabled
+// No manual implementation required
+```
+
+### TypeScript Types
+
+```typescript
+// Main plugin options
+export type VercelBlobStorageOptions = {
+  access?: 'public'
+  addRandomSuffix?: boolean
+  cacheControlMaxAge?: number
+  clientUploads?: ClientUploadsConfig
+  collections: Partial<Record<UploadCollectionSlug, Omit<CollectionOptions, 'adapter'> | true>>
+  enabled?: boolean
+  token: string | undefined
+}
+
+// Client upload handler extra properties
+export type VercelBlobClientUploadHandlerExtra = {
+  addRandomSuffix: boolean
+  baseURL: string
+  prefix: string
+}
+
+// Plugin function type
+type VercelBlobStoragePlugin = (vercelBlobStorageOpts: VercelBlobStorageOptions) => Plugin
+```
+
+## Integrations
+
+### PayloadCMS Integration
+The adapter automatically integrates with:
+- **Upload collections**: Replaces default local storage
+- **Image resizing**: Works with Payload's image processing
+- **Admin UI**: Seamless file upload and management
+- **REST API**: File serving through generated URLs
+
+### Vercel Platform
+- **Automatic CDN**: Files served through Vercel's edge network
+- **Environment variables**: Token automatically set in Vercel projects
+- **Build integration**: Works with Vercel's build and deployment process
+
+### Database Integration
+The adapter stores file metadata in your configured database:
+- File URLs pointing to Vercel Blob storage
+- Original filenames and metadata
+- Upload timestamps and user information
+
+## Troubleshooting
+
+### Common Issues
+
+#### Invalid Token Format Error
+
+**Problem:** `Invalid token format for Vercel Blob adapter. Should be vercel_blob_rw_<store_id>_<random_string>.`
+
+**Solution:**
+1. Ensure Blob Storage is enabled in your Vercel project
+2. Check that `BLOB_READ_WRITE_TOKEN` is set correctly
+3. Verify the token format matches the expected pattern
+
+**Example:**
+```typescript
+// Check your environment variable
+console.log('Token:', process.env.BLOB_READ_WRITE_TOKEN)
+// Should look like: vercel_blob_rw_abc123_xyz789
+```
+
+#### Files Not Uploading (4.5MB Limit)
+
+**Problem:** Large files fail to upload on Vercel
+
+**Solution:**
+Enable client uploads to bypass server limits:
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  clientUploads: {
+    access: ({ req }) => Boolean(req.user),
+  },
+})
+```
+
+#### Files Not Found (404 Errors)
+
+**Problem:** Uploaded files return 404 when accessed
+
+**Solution:**
+1. Check token permissions (should be read/write)
+2. Verify the store ID in the token matches your project
+3. Ensure files were uploaded to the correct prefix path
+
+```typescript
+// Check file URLs in your database
+// Should match: https://<store_id>.public.blob.vercel-storage.com/<path>
+```
+
+#### Slow Upload Performance
+
+**Problem:** Uploads are taking too long
+
+**Solution:**
+1. Enable client uploads for better performance
+2. Adjust cache settings for faster subsequent access
+3. Use appropriate prefixes to organize files
+
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN,
+  clientUploads: true, // Enable client uploads
+  cacheControlMaxAge: 31536000, // Long cache for static assets
+})
+```
+
+### Debugging
+
+To debug issues with the Vercel Blob adapter:
+
+1. **Enable Payload logging:**
+```typescript
+export default buildConfig({
+  logger: {
+    level: 'debug',
+  },
+  // ... rest of config
+})
+```
+
+2. **Check environment variables:**
+```typescript
+console.log('Blob token set:', Boolean(process.env.BLOB_READ_WRITE_TOKEN))
+console.log('Token format valid:', /^vercel_blob_rw_[a-z\d]+_[a-z\d]+$/i.test(process.env.BLOB_READ_WRITE_TOKEN || ''))
+```
+
+3. **Verify Vercel Blob setup:**
+   - Check Vercel project settings
+   - Ensure Blob Storage is enabled
+   - Verify environment variable deployment
+
+## Performance
+
+### Performance Optimization
+
+1. **Use Client Uploads for Large Files:**
+```typescript
+clientUploads: {
+  access: ({ req }) => Boolean(req.user),
+}
+```
+
+2. **Optimize Cache Headers:**
+```typescript
+cacheControlMaxAge: 31536000, // 1 year for static assets
+```
+
+3. **Organize with Prefixes:**
+```typescript
+collections: {
+  media: { prefix: 'media' },
+  avatars: { prefix: 'avatars' },
+}
+```
+
+4. **Enable Random Suffixes for Cacheable URLs:**
+```typescript
+addRandomSuffix: true, // Enables better caching strategies
+```
+
+## Security
+
+- **Token Security**: Never commit tokens to version control
+- **Access Control**: Use the `clientUploads.access` function to control upload permissions
+- **File Validation**: Leverage Payload's built-in file type validation
+- **CORS**: Client uploads automatically handle CORS through Vercel's infrastructure
+
+**Best Practices:**
+```typescript
+vercelBlobStorage({
+  collections: { media: true },
+  token: process.env.BLOB_READ_WRITE_TOKEN, // Always use environment variables
+  clientUploads: {
+    access: ({ req, collectionSlug }) => {
+      // Implement proper access control
+      if (collectionSlug === 'media') {
+        return req.user?.role === 'admin'
+      }
+      return Boolean(req.user)
+    },
+  },
+})
+```
+
+## Migration
+
+### From Local Storage to Vercel Blob
+
+When migrating from local storage:
+
+1. **Install the adapter:**
+```bash
+pnpm add @payloadcms/storage-vercel-blob
+```
+
+2. **Configure the plugin:**
+```typescript
+// Before
+export default buildConfig({
+  collections: [
+    {
+      slug: 'media',
+      upload: {
+        staticDir: 'uploads', // Remove or keep for fallback
+      },
+    },
+  ],
+})
+
+// After
+export default buildConfig({
+  collections: [
+    {
+      slug: 'media',
+      upload: true, // staticDir automatically disabled
+    },
+  ],
+  plugins: [
+    vercelBlobStorage({
+      collections: { media: true },
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    }),
+  ],
+})
+```
+
+3. **Migrate existing files:** Use Payload's built-in data migration tools to move existing files to Vercel Blob.
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues) or submit a Pull Request.
+
+## License
+
+MIT License - see LICENSE.md for full text.

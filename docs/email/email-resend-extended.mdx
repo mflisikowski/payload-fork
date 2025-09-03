@@ -1,0 +1,766 @@
+---
+title: Resend Email Adapter
+label: email-resend
+order: 11
+desc: Official Resend email adapter for PayloadCMS - send emails using the Resend REST API with full TypeScript support and modern features
+keywords: [resend, email, rest-api, adapter, payload, attachment, tags, modern-email]
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from the original README.md file.
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+# Resend REST Email Adapter
+
+This adapter allows you to send emails using the [Resend](https://resend.com) REST API.
+
+## Installation
+
+```sh
+pnpm add @payloadcms/email-resend
+```
+
+## Usage
+
+- Sign up for a [Resend](https://resend.com) account
+- Set up a domain
+- Create an API key
+- Set API key as RESEND_API_KEY environment variable
+- Configure your Payload config
+
+```ts
+// payload.config.js
+import { resendAdapter } from '@payloadcms/email-resend'
+
+export default buildConfig({
+  email: resendAdapter({
+    defaultFromAddress: 'dev@payloadcms.com',
+    defaultFromName: 'Payload CMS',
+    apiKey: process.env.RESEND_API_KEY || '',
+  }),
+})
+```
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/email-resend)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/email-resend)
+
+## Detailed Overview
+
+The **@payloadcms/email-resend** package is the official email adapter for PayloadCMS that integrates with Resend's modern email API. Resend is a developer-first email platform that provides a simple REST API for sending transactional emails with built-in deliverability optimization, analytics, and modern developer experience.
+
+**Key Features:**
+- **REST API Integration**: Direct integration with Resend's HTTP API (no SMTP required)
+- **Modern Email Platform**: Built-in deliverability optimization and email analytics
+- **Attachment Support**: Send files up to 40MB per email with proper encoding
+- **Multiple Recipients**: Support for CC, BCC, and reply-to addresses
+- **Email Tags**: Tag emails for tracking and analytics
+- **TypeScript Support**: Full type safety with comprehensive TypeScript definitions
+- **Error Handling**: Detailed error reporting with proper HTTP status codes
+
+**What Problems It Solves:**
+- **SMTP Complexity**: Eliminates SMTP configuration complexities with simple API integration
+- **Deliverability Issues**: Leverages Resend's infrastructure for optimal email delivery
+- **Modern Development**: Provides a clean, REST-based approach to sending emails
+- **Developer Experience**: Type-safe email configuration with comprehensive error handling
+
+**Who It's For:**
+- Modern applications requiring reliable transactional email delivery
+- Developers who prefer REST APIs over SMTP protocols
+- Teams wanting built-in email analytics and tracking capabilities
+- Applications needing advanced email features like tagging and multiple recipients
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/email-resend). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (peer dependency)
+- **Node.js**: ^18.20.2 || >=20.9.0
+- **TypeScript**: Supported with full type definitions
+- **Resend Account**: Required for API access
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/email-resend
+
+# yarn
+yarn add @payloadcms/email-resend
+
+# pnpm
+pnpm add @payloadcms/email-resend
+```
+
+### Peer Dependencies
+This package requires PayloadCMS as a peer dependency:
+```bash
+# The adapter requires PayloadCMS to be installed
+pnpm add payload
+```
+
+## Quick Start
+
+Basic configuration with Resend API:
+
+```typescript
+import { buildConfig } from 'payload/config'
+import { resendAdapter } from '@payloadcms/email-resend'
+
+export default buildConfig({
+  // ... other config
+  email: resendAdapter({
+    apiKey: process.env.RESEND_API_KEY, // Your Resend API key
+    defaultFromAddress: 'noreply@yourdomain.com', // Must be verified in Resend
+    defaultFromName: 'Your App Name',
+  }),
+  // ... rest of config
+})
+```
+
+### Environment Variables
+```bash
+RESEND_API_KEY=re_YourResendApiKey_here
+```
+
+### Resend Setup Steps
+1. **Sign up** at [resend.com](https://resend.com)
+2. **Add and verify your domain** in the Resend dashboard
+3. **Create an API key** with appropriate permissions
+4. **Set the API key** as an environment variable
+5. **Configure the adapter** in your PayloadCMS config
+
+## Detailed Configuration
+
+### Main Options
+
+#### `apiKey`
+
+- **Type**: `string`
+- **Required**: true
+
+Your Resend API key. This should be stored as an environment variable for security.
+
+```typescript
+email: resendAdapter({
+  apiKey: process.env.RESEND_API_KEY, // Always use environment variables
+  // ... other options
+})
+```
+
+<Banner type="warning">
+**Security**: Never hardcode API keys in your source code. Always use environment variables.
+</Banner>
+
+#### `defaultFromAddress`
+
+- **Type**: `string`
+- **Required**: true
+
+The default sender email address. This address must be verified in your Resend account and associated with a verified domain.
+
+```typescript
+email: resendAdapter({
+  apiKey: process.env.RESEND_API_KEY,
+  defaultFromAddress: 'notifications@yourdomain.com', // Must be verified in Resend
+  // ... other options
+})
+```
+
+#### `defaultFromName`
+
+- **Type**: `string`
+- **Required**: true
+
+The default sender name that will appear in email clients alongside the from address.
+
+```typescript
+email: resendAdapter({
+  apiKey: process.env.RESEND_API_KEY,
+  defaultFromAddress: 'notifications@yourdomain.com',
+  defaultFromName: 'Your App Notifications', // Appears as sender name
+})
+```
+
+### Configuration Schema
+
+```typescript
+export type ResendAdapterArgs = {
+  // Required Resend API key (store in environment variables)
+  apiKey: string
+  
+  // Required sender information (must be verified in Resend)
+  defaultFromAddress: string
+  defaultFromName: string
+}
+
+// The adapter function returns a ResendAdapter
+type ResendAdapter = EmailAdapter<ResendResponse>
+
+// Response from Resend API
+type ResendResponse = { id: string } | ResendError
+
+// Error response structure
+type ResendError = {
+  message: string
+  name: string
+  statusCode: number
+}
+```
+
+## Usage Guides
+
+### Basic Email Sending
+
+Once configured, use PayloadCMS's built-in email methods:
+
+```typescript
+// Send a simple text email
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'Welcome to our app!',
+  text: 'Thanks for signing up. We\'re excited to have you!',
+})
+
+// Send an HTML email
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'Welcome to our app!',
+  html: '<h1>Welcome!</h1><p>Thanks for signing up. We\'re excited to have you!</p>',
+})
+```
+
+### Advanced Email Features
+
+#### Multiple Recipients with CC and BCC
+
+```typescript
+await payload.sendEmail({
+  to: ['user1@example.com', 'user2@example.com'],
+  cc: 'manager@example.com',
+  bcc: ['admin@example.com', 'audit@example.com'],
+  subject: 'Team Update',
+  html: '<p>Here\'s the latest team update...</p>',
+  replyTo: 'support@example.com',
+})
+```
+
+#### Sending Emails with Attachments
+
+```typescript
+import fs from 'fs'
+
+// With file buffer
+const fileBuffer = fs.readFileSync('/path/to/document.pdf')
+
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'Your document',
+  html: '<p>Please find your document attached.</p>',
+  attachments: [
+    {
+      filename: 'document.pdf',
+      content: fileBuffer,
+    },
+  ],
+})
+
+// With string content
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'CSV Export',
+  html: '<p>Your data export is attached.</p>',
+  attachments: [
+    {
+      filename: 'data.csv',
+      content: 'Name,Email\nJohn,john@example.com\n',
+    },
+  ],
+})
+```
+
+### Advanced Patterns
+
+#### Custom From Address Per Email
+
+You can override the default from address for specific emails:
+
+```typescript
+await payload.sendEmail({
+  from: 'support@yourdomain.com', // Override default from address
+  to: 'user@example.com',
+  subject: 'Support Response',
+  html: '<p>Thanks for contacting support...</p>',
+})
+
+// Or with custom name and address
+await payload.sendEmail({
+  from: {
+    name: 'Customer Support',
+    address: 'support@yourdomain.com',
+  },
+  to: 'user@example.com',
+  subject: 'Support Response',
+  html: '<p>Thanks for contacting support...</p>',
+})
+```
+
+#### Email Templates with Dynamic Content
+
+```typescript
+// Create a reusable email template function
+const sendWelcomeEmail = async (userEmail: string, userName: string) => {
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif;">
+      <h1>Welcome ${userName}!</h1>
+      <p>Thanks for joining our platform. Here's what you can do next:</p>
+      <ul>
+        <li>Complete your profile</li>
+        <li>Explore our features</li>
+        <li>Join our community</li>
+      </ul>
+      <p>Best regards,<br>The Team</p>
+    </div>
+  `
+  
+  await payload.sendEmail({
+    to: userEmail,
+    subject: `Welcome ${userName}!`,
+    html: htmlContent,
+  })
+}
+
+// Use the template
+await sendWelcomeEmail('newuser@example.com', 'John Doe')
+```
+
+## API Reference
+
+### Functions
+
+#### `resendAdapter(args: ResendAdapterArgs)`
+
+Creates and configures a PayloadCMS email adapter using the Resend API.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `args` | `ResendAdapterArgs` | true | Configuration object |
+| `args.apiKey` | `string` | true | Resend API key |
+| `args.defaultFromAddress` | `string` | true | Default sender email address (must be verified) |
+| `args.defaultFromName` | `string` | true | Default sender name |
+
+**Returns:** `ResendAdapter`
+
+**Example:**
+```typescript
+const adapter = resendAdapter({
+  apiKey: process.env.RESEND_API_KEY,
+  defaultFromAddress: 'hello@myapp.com',
+  defaultFromName: 'MyApp',
+})
+```
+
+### Internal Functions
+
+#### `mapPayloadEmailToResendEmail(message, defaultFromAddress, defaultFromName)`
+
+Internal function that maps PayloadCMS email options to Resend API format.
+
+#### `mapFromAddress(address, defaultFromName, defaultFromAddress)`
+
+Internal function that formats the from address for Resend API.
+
+#### `mapAddresses(addresses)`
+
+Internal function that converts PayloadCMS address formats to Resend format.
+
+#### `mapAttachments(attachments)`
+
+Internal function that processes attachments for Resend API, handling both string and Buffer content.
+
+### TypeScript Types
+
+```typescript
+// Main configuration type
+export type ResendAdapterArgs = {
+  apiKey: string
+  defaultFromAddress: string
+  defaultFromName: string
+}
+
+// Adapter response types
+type ResendResponse = { id: string } | ResendError
+
+type ResendError = {
+  message: string
+  name: string
+  statusCode: number
+}
+
+// Resend API email options (internal)
+type ResendSendEmailOptions = {
+  // Required fields
+  from: string
+  subject: string
+  to: string | string[]
+  
+  // Optional fields
+  attachments?: Attachment[]
+  bcc?: string | string[]
+  cc?: string | string[]
+  reply_to?: string | string[]
+  html?: string
+  text?: string
+  headers?: Record<string, string>
+  tags?: Tag[]
+}
+
+// Attachment structure
+type Attachment = {
+  content?: Buffer | string
+  filename?: false | string | undefined
+  path?: string
+}
+
+// Email tag structure
+export type Tag = {
+  name: string  // Max 256 characters, ASCII letters, numbers, _, -
+  value: string // Max 256 characters, ASCII letters, numbers, _, -
+}
+```
+
+## Integrations
+
+### PayloadCMS Email System
+
+This adapter integrates seamlessly with PayloadCMS's email system for:
+
+- **Authentication Flows**: Password resets, email verification, magic links
+- **User Management**: Welcome emails, account notifications
+- **Form Submissions**: Contact forms, feedback submissions
+- **Custom Workflows**: Order confirmations, status updates
+
+```typescript
+// Example: Custom user registration email
+payload.db.hooks.afterCreate.push({
+  collection: 'users',
+  hook: async ({ doc }) => {
+    await payload.sendEmail({
+      to: doc.email,
+      subject: 'Welcome to our platform!',
+      html: `<h1>Welcome ${doc.name}!</h1><p>Your account has been created successfully.</p>`,
+    })
+  },
+})
+```
+
+### Resend Platform Features
+
+The adapter leverages Resend's platform features:
+
+- **Domain Authentication**: Automatic SPF, DKIM, and DMARC setup
+- **Email Analytics**: Track opens, clicks, and delivery status
+- **Webhook Integration**: Real-time email event notifications
+- **Template Engine**: Server-side email template rendering
+- **Bounce Management**: Automatic handling of bounced emails
+
+### External Services
+
+The adapter can be integrated with:
+
+- **Analytics Platforms**: Track email performance metrics
+- **Customer Support**: Integration with support ticket systems
+- **Marketing Automation**: Trigger-based email campaigns
+- **Logging Services**: Email audit trails and monitoring
+
+## Troubleshooting
+
+### Common Issues
+
+#### API Key Authentication Failed
+
+**Problem:** `Error sending email: 403 authentication_error - Unauthorized`
+
+**Solution:**
+1. Verify your API key is correct and active in Resend dashboard
+2. Check that the API key has proper permissions
+3. Ensure the API key is properly set in environment variables
+
+```typescript
+// Verify your environment variables
+console.log('API Key exists:', !!process.env.RESEND_API_KEY)
+
+// Test configuration
+const adapter = resendAdapter({
+  apiKey: process.env.RESEND_API_KEY,
+  defaultFromAddress: 'test@yourdomain.com',
+  defaultFromName: 'Test',
+})
+```
+
+#### Domain Not Verified
+
+**Problem:** `Error sending email: 403 validation_error - From address not verified`
+
+**Solution:**
+1. Log into your Resend dashboard
+2. Go to Domains section
+3. Add and verify your domain with DNS records
+4. Ensure your `defaultFromAddress` uses the verified domain
+
+```typescript
+// Make sure your from address uses a verified domain
+email: resendAdapter({
+  apiKey: process.env.RESEND_API_KEY,
+  defaultFromAddress: 'notifications@your-verified-domain.com', // Must match verified domain
+  defaultFromName: 'Your App',
+})
+```
+
+#### Attachment Too Large
+
+**Problem:** `Error sending email: 413 - Attachment too large`
+
+**Solution:**
+Resend has a 40MB limit for total attachment size per email:
+
+```typescript
+// Check attachment sizes before sending
+const attachments = [
+  {
+    filename: 'large-file.pdf',
+    content: fileBuffer, // Should be < 40MB total
+  },
+]
+
+// For large files, consider using cloud storage links instead
+await payload.sendEmail({
+  to: 'user@example.com',
+  subject: 'Your large file is ready',
+  html: `
+    <p>Your file is too large to attach directly.</p>
+    <p><a href="https://your-storage.com/download/file-id">Download your file here</a></p>
+  `,
+})
+```
+
+#### Rate Limiting
+
+**Problem:** `Error sending email: 429 - Too many requests`
+
+**Solution:**
+Implement rate limiting in your application:
+
+```typescript
+// Simple rate limiting example
+class EmailRateLimiter {
+  private emailsSent = 0
+  private resetTime = Date.now() + 3600000 // 1 hour
+
+  async sendEmail(emailOptions: SendEmailOptions) {
+    if (Date.now() > this.resetTime) {
+      this.emailsSent = 0
+      this.resetTime = Date.now() + 3600000
+    }
+
+    if (this.emailsSent >= 100) { // Resend's hourly limit varies by plan
+      throw new Error('Rate limit reached. Please try again later.')
+    }
+
+    const result = await payload.sendEmail(emailOptions)
+    this.emailsSent++
+    return result
+  }
+}
+```
+
+### Debugging
+
+Enable detailed error logging to troubleshoot issues:
+
+```typescript
+// Custom error handling
+const sendEmailWithLogging = async (emailOptions: SendEmailOptions) => {
+  try {
+    const result = await payload.sendEmail(emailOptions)
+    console.log('Email sent successfully:', result)
+    return result
+  } catch (error) {
+    console.error('Email sending failed:', {
+      error: error.message,
+      to: emailOptions.to,
+      subject: emailOptions.subject,
+      timestamp: new Date().toISOString(),
+    })
+    throw error
+  }
+}
+```
+
+You can also check Resend's logs in their dashboard for detailed delivery information.
+
+## Performance
+
+### Performance Optimization
+
+#### Batch Email Sending
+
+For sending multiple emails, send them in parallel but respect rate limits:
+
+```typescript
+// Send multiple emails efficiently
+const sendBatchEmails = async (recipients: string[], emailContent: Partial<SendEmailOptions>) => {
+  const batchSize = 10 // Adjust based on your rate limits
+  
+  for (let i = 0; i < recipients.length; i += batchSize) {
+    const batch = recipients.slice(i, i + batchSize)
+    
+    await Promise.all(
+      batch.map(recipient => 
+        payload.sendEmail({
+          ...emailContent,
+          to: recipient,
+        })
+      )
+    )
+    
+    // Small delay between batches to respect rate limits
+    if (i + batchSize < recipients.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+  }
+}
+```
+
+#### Connection Reuse
+
+The Resend adapter uses HTTP fetch, which automatically handles connection pooling in modern Node.js environments.
+
+#### Error Recovery
+
+Implement retry logic for transient failures:
+
+```typescript
+const sendEmailWithRetry = async (emailOptions: SendEmailOptions, maxRetries = 3) => {
+  let lastError: Error
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await payload.sendEmail(emailOptions)
+    } catch (error) {
+      lastError = error
+      
+      // Only retry on certain error types
+      if (error.statusCode === 429 || error.statusCode >= 500) {
+        const delay = Math.pow(2, attempt) * 1000 // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, delay))
+        continue
+      }
+      
+      throw error // Don't retry client errors
+    }
+  }
+  
+  throw lastError
+}
+```
+
+## Security
+
+### Security Best Practices
+
+1. **API Key Security**: Always use environment variables for API keys
+2. **Domain Verification**: Only use verified domains for sending emails
+3. **Input Validation**: Validate all email inputs before sending
+4. **Rate Limiting**: Implement application-level rate limiting
+5. **Content Filtering**: Sanitize email content to prevent injection attacks
+
+```typescript
+// Secure configuration example
+import { sanitizeHtml } from 'your-sanitizer-library'
+
+const sendSecureEmail = async (to: string, subject: string, htmlContent: string) => {
+  // Validate email address
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    throw new Error('Invalid email address')
+  }
+  
+  // Sanitize content
+  const safeHtml = sanitizeHtml(htmlContent)
+  
+  await payload.sendEmail({
+    to,
+    subject: subject.slice(0, 998), // Resend subject limit
+    html: safeHtml,
+  })
+}
+```
+
+### Avoiding Common Vulnerabilities
+
+- **Email Injection**: The adapter automatically handles proper email formatting
+- **Content Injection**: Always sanitize user-provided content before including in emails
+- **API Key Exposure**: Never log or expose API keys in error messages or client-side code
+
+## Migration
+
+### From Nodemailer to Resend
+
+If migrating from the nodemailer adapter:
+
+```typescript
+// Before (Nodemailer)
+email: nodemailerAdapter({
+  defaultFromAddress: 'noreply@myapp.com',
+  defaultFromName: 'MyApp',
+  transportOptions: {
+    host: 'smtp.myapp.com',
+    port: 587,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  },
+})
+
+// After (Resend)
+email: resendAdapter({
+  defaultFromAddress: 'noreply@myapp.com', // Must be verified in Resend
+  defaultFromName: 'MyApp',
+  apiKey: process.env.RESEND_API_KEY,
+})
+```
+
+**Migration Steps:**
+1. Create Resend account and verify your domain
+2. Generate API key
+3. Update environment variables
+4. Replace adapter configuration
+5. Test email functionality
+6. Monitor delivery rates and analytics
+
+## Example Projects
+
+- [PayloadCMS E-commerce](https://github.com/payloadcms/payload/tree/main/examples/ecommerce) - Order confirmations with Resend
+- [PayloadCMS SaaS](https://github.com/payloadcms/payload/tree/main/examples/auth) - User authentication emails
+- [PayloadCMS Blog](https://github.com/payloadcms/payload/tree/main/examples/blog) - Newsletter subscriptions and notifications
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues) or submit a Pull Request.
+
+## License
+
+MIT License - see [LICENSE.md](./LICENSE.md) for details.

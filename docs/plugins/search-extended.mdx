@@ -1,0 +1,1300 @@
+---
+title: Search Plugin
+label: Search
+order: 80
+desc: Generates records of your documents that are extremely fast to search on with automatic syncing and priority-based results.
+keywords: plugins, search, search plugin, search engine, search index, search results, search bar, search box, search field, search form, search input, algolia, elasticsearch
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](/Users/mateuszflisikowski/mission-focused-developer/payload/docs/plugins/search.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-search](https://img.shields.io/npm/v/@payloadcms/plugin-search)
+
+This plugin generates records of your documents that are extremely fast to search on. It does so by creating a new `search` collection that is indexed in the database then saving a static copy of each of your documents using only search-critical data. Search records are automatically created, synced, and deleted behind-the-scenes as you manage your application's documents.
+
+For example, if you have a posts collection that is extremely large and complex, this would allow you to sync just the title, excerpt, and slug of each post so you can query on _that_ instead of the original post directly. Search records are static, so querying them also has the significant advantage of bypassing any hooks that may present be on the original documents. You define exactly what data is synced, and you can even modify or fallback this data before it is saved on a per-document basis.
+
+To query search results, use all the existing Payload APIs that you are already familiar with. You can also prioritize search results by setting a custom priority for each collection. For example, you may want to list blog posts before pages. Or you may want one specific post to always take appear first. Search records are given a `priority` field that can be used as the `?sort=` parameter in your queries.
+
+This plugin is a great way to implement a fast, immersive search experience such as a search bar in a front-end application. Many applications may not need the power and complexity of a third-party service like Algolia or ElasticSearch. This plugin provides a first-party alternative that is easy to set up and runs entirely on your own database.
+
+<Banner type="info">
+  This plugin is completely open-source and the [source code can be found
+  here](https://github.com/payloadcms/payload/tree/main/packages/plugin-search).
+  If you need help, check out our [Community
+  Help](https://payloadcms.com/community-help). If you think you've found a bug,
+  please [open a new
+  issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%20search&template=bug_report.md&title=plugin-search%3A)
+  with as much detail as possible.
+</Banner>
+
+## Core Features
+
+- Automatically adds an indexed `search` collection to your database
+- Automatically creates, syncs, and deletes search records as you manage your documents
+- Saves only search-critical data that you define (e.g. title, excerpt, etc.)
+- Allows you to query search results using first-party Payload APIs
+- Allows you to query documents without triggering any of their underlying hooks
+- Allows you to easily prioritize search results by collection or document
+- Allows you to reindex search results by collection on demand
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+  pnpm add @payloadcms/plugin-search
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](https://payloadcms.com/docs/configuration/overview), call the plugin with [options](#options):
+
+```js
+import { buildConfig } from 'payload'
+import { searchPlugin } from '@payloadcms/plugin-search'
+
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'pages',
+      fields: [],
+    },
+    {
+      slug: 'posts',
+      fields: [],
+    },
+  ],
+  plugins: [
+    searchPlugin({
+      collections: ['pages', 'posts'],
+      defaultPriorities: {
+        pages: 10,
+        posts: 20,
+      },
+    }),
+  ],
+})
+
+export default config
+```
+
+### Options
+
+#### `collections`
+
+The `collections` property is an array of collection slugs to enable syncing to search. Enabled collections receive a `beforeChange` and `afterDelete` hook that creates, updates, and deletes its respective search record as it changes over time.
+
+#### `localize`
+
+By default, the search plugin will add `localization: true` to the `title` field of the newly added `search` collection if you have localization enabled. If you would like to disable this behavior, you can set this to `false`.
+
+#### `defaultPriorities`
+
+This plugin automatically adds a `priority` field to the `search` collection that can be used as the `?sort=` parameter in your queries. For example, you may want to list blog posts before pages. Or you may want one specific post to always take appear first.
+
+The `defaultPriorities` property is used to set a fallback `priority` on search records during the `create` operation. It accepts an object with keys that are your collection slugs and values that can either be a number or a function that returns a number. The function receives the `doc` as an argument, which is the document being created.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  searchPlugin({
+    defaultPriorities: {
+      pages: ({ doc }) => (doc.title.startsWith('Hello, world!') ? 1 : 10),
+      posts: 20,
+    },
+  }),
+}
+```
+
+#### `searchOverrides`
+
+This plugin automatically creates the `search` collection, but you can override anything on this collection via the `searchOverrides` property. It accepts anything from the [Payload Collection Config](https://payloadcms.com/docs/configuration/collections) and merges it in with the default `search` collection config provided by the plugin.
+
+Note that the `fields` property is a function that receives an object with a `defaultFields` key. This is an array of fields that are automatically added to the `search` collection. You can modify this array or add new fields to it.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  searchPlugin({
+    searchOverrides: {
+      slug: 'search-results',
+      fields: ({ defaultFields }) => [
+        ...defaultFields,
+        {
+          name: 'excerpt',
+          type: 'textarea',
+          admin: {
+            position: 'sidebar',
+          },
+        },
+      ],
+    },
+  }),
+}
+```
+
+#### `beforeSync`
+
+Before creating or updating a search record, the `beforeSync` function runs. This is an [afterChange](https://payloadcms.com/docs/hooks/globals#afterchange) hook that allows you to modify the data or provide fallbacks before its search record is created or updated.
+
+```ts
+// payload.config.ts
+{
+  // ...
+  searchPlugin({
+    beforeSync: ({ originalDoc, searchDoc }) => ({
+      ...searchDoc,
+      // - Modify your docs in any way here, this can be async
+      // - You also need to add the `excerpt` field in the `searchOverrides` config
+      excerpt: originalDoc?.excerpt || 'This is a fallback excerpt',
+    }),
+  }),
+}
+```
+
+#### `syncDrafts`
+
+When `syncDrafts` is true, draft documents will be synced to search. This is false by default. You must have [Payload Drafts](https://payloadcms.com/docs/versions/drafts) enabled for this to apply.
+
+#### `deleteDrafts`
+
+If true, will delete documents from search whose status changes to draft. This is true by default. You must have [Payload Drafts](https://payloadcms.com/docs/versions/drafts) enabled for this to apply.
+
+#### `reindexBatchSize`
+
+A number that, when specified, will be used as the value to determine how many search documents to fetch for reindexing at a time in each batch. If not set, this will default to `50`.
+
+### Collection reindexing
+
+Collection reindexing allows you to recreate search documents from your search-enabled collections on demand. This is useful if you have existing documents that don't already have search indexes, commonly when adding `plugin-search` to an existing project. To get started, navigate to your search collection and click the pill in the top right actions slot of the list view labelled `Reindex`. This will open a popup with options to select one of your search-enabled collections, or all, for reindexing.
+
+## TypeScript
+
+All types can be directly imported:
+
+```ts
+import type { SearchConfig, BeforeSync } from '@payloadcms/plugin-search/types'
+```
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-search)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-search)
+
+## Detailed Overview
+
+The **@payloadcms/plugin-search** is a comprehensive search solution that transforms PayloadCMS into a high-performance search engine. Unlike traditional search implementations that query directly against complex collections with heavy hooks and relationships, this plugin creates a dedicated, optimized search index that dramatically improves search performance and user experience.
+
+**Core Architecture:**
+- **Automated Search Collection**: Creates a dedicated `search` collection with optimized fields and database indexes
+- **Real-time Synchronization**: Automatically syncs document changes using PayloadCMS hooks (afterChange, beforeDelete)
+- **Smart Data Selection**: Store only essential search data (title, excerpt, etc.) rather than entire documents
+- **Priority-based Ranking**: Built-in priority system for customizable search result ordering
+- **Localization Support**: Full internationalization support for multi-language applications
+
+**What Problems It Solves:**
+- **Performance Issues**: Eliminates slow searches on large, complex collections
+- **Hook Overhead**: Bypasses expensive hooks and deep relationships during search queries  
+- **Search Experience**: Provides fast, real-time search for front-end applications
+- **Relevance Ranking**: Enables custom priority and sorting for better search results
+- **Maintenance Burden**: Reduces complexity compared to external search services like Algolia or Elasticsearch
+
+**Who It's For:**
+- Applications needing fast, immersive search experiences (search bars, autocomplete)
+- Projects with large, complex collections that are slow to search
+- Teams wanting first-party search without external dependencies
+- Multi-language sites requiring localized search functionality
+- Developers seeking an alternative to expensive third-party search services
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-search). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: workspace:* (peer dependency)
+- **Node.js**: No specific requirements (follows PayloadCMS requirements)
+- **React**: ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+- **React DOM**: ^19.0.0 || ^19.0.0-rc-65a56d0e-20241020
+- **Database**: Any database supported by PayloadCMS (with indexing capabilities recommended)
+
+### Additional Requirements
+- **@payloadcms/next**: workspace:* (for Next.js integration)
+- **@payloadcms/ui**: workspace:* (for admin UI components)
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-search
+
+# yarn
+yarn add @payloadcms/plugin-search
+
+# pnpm
+pnpm add @payloadcms/plugin-search
+```
+
+### Peer Dependencies
+This package requires the following peer dependencies:
+```bash
+# Core PayloadCMS
+pnpm add payload
+
+# React (required for admin UI)
+pnpm add react react-dom
+```
+
+## Quick Start
+
+Basic search plugin configuration:
+
+```typescript
+import { buildConfig } from 'payload'
+import { searchPlugin } from '@payloadcms/plugin-search'
+
+export default buildConfig({
+  collections: [
+    {
+      slug: 'posts',
+      fields: [
+        { name: 'title', type: 'text', required: true },
+        { name: 'content', type: 'richText' },
+        { name: 'excerpt', type: 'textarea' },
+      ],
+    },
+    {
+      slug: 'pages',
+      fields: [
+        { name: 'title', type: 'text', required: true },
+        { name: 'content', type: 'richText' },
+      ],
+    },
+  ],
+  plugins: [
+    searchPlugin({
+      collections: ['posts', 'pages'], // Enable search for these collections
+      defaultPriorities: {
+        posts: 20, // Posts appear before pages in search
+        pages: 10,
+      },
+    }),
+  ],
+})
+```
+
+This configuration will:
+1. Create a `search` collection with indexed fields
+2. Add hooks to `posts` and `pages` collections for automatic syncing
+3. Set priority values to influence search result ordering
+
+## Detailed Configuration
+
+### Main Options
+
+#### `collections`
+
+- **Type**: `string[]`
+- **Required**: true
+
+Array of collection slugs to enable for search indexing. Each enabled collection receives automatic hooks for syncing.
+
+```typescript
+searchPlugin({
+  collections: ['posts', 'pages', 'products'],
+  // Only these collections will be searchable
+})
+```
+
+#### `defaultPriorities`
+
+- **Type**: `{ [collection: string]: number | ((doc: any) => number | Promise<number>) }`
+- **Default value**: `undefined`
+- **Required**: false
+
+Sets default priority values for search results. Higher numbers appear first in search results.
+
+```typescript
+searchPlugin({
+  defaultPriorities: {
+    // Static priority
+    posts: 30,
+    pages: 20,
+    
+    // Dynamic priority based on document content
+    products: ({ doc }) => {
+      if (doc.featured) return 50
+      if (doc.category === 'electronics') return 40
+      return 10
+    },
+    
+    // Async priority calculation
+    users: async ({ doc }) => {
+      const score = await calculateUserReputationScore(doc.id)
+      return score
+    },
+  },
+})
+```
+
+#### `searchOverrides`
+
+- **Type**: `Partial<CollectionConfig> & { fields?: FieldsOverride }`
+- **Default value**: `{}`
+- **Required**: false
+
+Customizes the automatically generated search collection. Accepts any PayloadCMS collection configuration options.
+
+```typescript
+searchPlugin({
+  searchOverrides: {
+    slug: 'site-search', // Custom collection name
+    labels: {
+      singular: 'Search Result',
+      plural: 'Search Results',
+    },
+    // Add custom fields
+    fields: ({ defaultFields }) => [
+      ...defaultFields,
+      {
+        name: 'excerpt',
+        type: 'textarea',
+        admin: { position: 'sidebar' },
+      },
+      {
+        name: 'tags',
+        type: 'text',
+        hasMany: true,
+      },
+    ],
+    // Custom access control
+    access: {
+      read: ({ req }) => {
+        return req.user?.role === 'admin'
+      },
+    },
+    // Custom admin configuration
+    admin: {
+      useAsTitle: 'title',
+      defaultColumns: ['title', 'priority', 'doc'],
+      group: 'Search',
+    },
+  },
+})
+```
+
+##### Sub-options for searchOverrides:
+- **slug**: Custom name for the search collection
+- **fields**: Function to modify default search fields
+- **access**: Custom access control rules
+- **admin**: Admin UI customizations
+- **labels**: Custom collection labels
+- **endpoints**: Additional API endpoints
+
+#### `beforeSync`
+
+- **Type**: `BeforeSync`
+- **Default value**: `undefined`
+- **Required**: false
+
+Hook function that runs before creating or updating search records. Allows data transformation and fallbacks.
+
+```typescript
+searchPlugin({
+  beforeSync: async ({ originalDoc, searchDoc, payload, req }) => {
+    return {
+      ...searchDoc,
+      // Add custom search data
+      excerpt: originalDoc.excerpt || originalDoc.content?.substring(0, 200),
+      
+      // Add computed fields
+      searchableText: [originalDoc.title, originalDoc.content, originalDoc.tags].join(' '),
+      
+      // Add metadata
+      lastModified: new Date(),
+      wordCount: originalDoc.content?.split(' ').length || 0,
+    }
+  },
+})
+```
+
+#### `localize`
+
+- **Type**: `boolean`
+- **Default value**: Inherits from PayloadCMS config
+- **Required**: false
+
+Controls whether search fields should be localized. Automatically detects localization settings if not specified.
+
+```typescript
+searchPlugin({
+  localize: true, // Force localization
+  // or
+  localize: false, // Disable localization regardless of config
+})
+```
+
+#### `syncDrafts`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: false
+
+Determines whether draft documents should be included in search results.
+
+```typescript
+searchPlugin({
+  syncDrafts: false, // Only published documents in search (default)
+  // or
+  syncDrafts: true, // Include drafts in search results
+})
+```
+
+#### `deleteDrafts`
+
+- **Type**: `boolean`  
+- **Default value**: `true`
+- **Required**: false
+
+Controls whether documents should be removed from search when their status changes to draft.
+
+```typescript
+searchPlugin({
+  deleteDrafts: true, // Remove from search when set to draft (default)
+  // or
+  deleteDrafts: false, // Keep in search even when draft
+})
+```
+
+#### `reindexBatchSize`
+
+- **Type**: `number`
+- **Default value**: `50`
+- **Required**: false
+
+Number of documents to process in each batch during reindexing operations.
+
+```typescript
+searchPlugin({
+  reindexBatchSize: 100, // Process 100 documents at a time
+  // Lower numbers use less memory, higher numbers are faster
+})
+```
+
+### Configuration Schema
+
+```typescript
+export type SearchPluginConfig = {
+  // Required: Collections to enable for search
+  collections?: string[]
+  
+  // Priority system for result ordering
+  defaultPriorities?: {
+    [collection: string]: ((doc: any) => number | Promise<number>) | number
+  }
+  
+  // Customize the search collection
+  searchOverrides?: { 
+    fields?: FieldsOverride 
+  } & Partial<Omit<CollectionConfig, 'fields'>>
+  
+  // Data transformation hook
+  beforeSync?: BeforeSync
+  
+  // Localization settings
+  localize?: boolean
+  
+  // Draft handling
+  syncDrafts?: boolean
+  deleteDrafts?: boolean
+  
+  // Performance tuning
+  reindexBatchSize?: number
+  
+  // Deprecated: API path (auto-detected)
+  apiBasePath?: string
+}
+
+// Supporting types
+export type BeforeSync = (args: {
+  originalDoc: { [key: string]: any }
+  payload: Payload
+  req: PayloadRequest
+  searchDoc: DocToSync
+}) => DocToSync | Promise<DocToSync>
+
+export type DocToSync = {
+  [key: string]: any
+  doc: {
+    relationTo: string
+    value: string
+  }
+  title: string
+}
+
+export type FieldsOverride = (args: { 
+  defaultFields: Field[] 
+}) => Field[]
+```
+
+## Usage Guides
+
+### Basic Search Implementation
+
+Implement a simple search endpoint:
+
+```typescript
+// In your API route or resolver
+export const searchDocuments = async (query: string, limit = 10) => {
+  const results = await payload.find({
+    collection: 'search',
+    where: {
+      title: {
+        like: query,
+      },
+    },
+    sort: '-priority', // Higher priority first
+    limit,
+  })
+  
+  return results.docs
+}
+```
+
+### Advanced Search with Filters
+
+Create sophisticated search functionality:
+
+```typescript
+// Advanced search with multiple criteria
+export const advancedSearch = async ({
+  query,
+  collections = [],
+  locale = 'en',
+  limit = 20,
+  page = 1,
+}) => {
+  const whereClause: any = {}
+  
+  // Text search
+  if (query) {
+    whereClause.or = [
+      { title: { like: query } },
+      { excerpt: { like: query } },
+      { searchableText: { like: query } },
+    ]
+  }
+  
+  // Filter by collections
+  if (collections.length > 0) {
+    whereClause['doc.relationTo'] = { in: collections }
+  }
+  
+  const results = await payload.find({
+    collection: 'search',
+    where: whereClause,
+    sort: '-priority',
+    limit,
+    page,
+    locale,
+  })
+  
+  return {
+    docs: results.docs,
+    totalDocs: results.totalDocs,
+    hasNextPage: results.hasNextPage,
+    hasPrevPage: results.hasPrevPage,
+  }
+}
+```
+
+### Front-end Search Component
+
+Create a React search component:
+
+```typescript
+// SearchBar.tsx
+import React, { useState, useEffect, useMemo } from 'react'
+import { debounce } from 'lodash'
+
+interface SearchResult {
+  id: string
+  title: string
+  doc: {
+    relationTo: string
+    value: string
+  }
+  priority: number
+}
+
+export const SearchBar: React.FC = () => {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [loading, setLoading] = useState(false)
+  
+  // Debounced search function
+  const debouncedSearch = useMemo(
+    () => debounce(async (searchQuery: string) => {
+      if (!searchQuery.trim()) {
+        setResults([])
+        return
+      }
+      
+      setLoading(true)
+      try {
+        const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`)
+        const data = await response.json()
+        setResults(data.docs)
+      } catch (error) {
+        console.error('Search error:', error)
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 300),
+    []
+  )
+  
+  useEffect(() => {
+    debouncedSearch(query)
+  }, [query, debouncedSearch])
+  
+  return (
+    <div className="search-bar">
+      <input
+        type="text"
+        placeholder="Search..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="search-input"
+      />
+      
+      {loading && <div className="loading">Searching...</div>}
+      
+      {results.length > 0 && (
+        <div className="search-results">
+          {results.map((result) => (
+            <div key={result.id} className="search-result">
+              <a href={`/${result.doc.relationTo}/${result.doc.value}`}>
+                <h4>{result.title}</h4>
+                <span className="collection">{result.doc.relationTo}</span>
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+### Advanced Patterns
+
+#### Custom Search Scoring
+
+Implement sophisticated search scoring:
+
+```typescript
+searchPlugin({
+  beforeSync: async ({ originalDoc, searchDoc, payload }) => {
+    // Calculate search relevance score
+    let relevanceScore = 0
+    
+    // Base score from priority
+    relevanceScore += searchDoc.priority || 0
+    
+    // Boost recent content
+    const daysSinceCreated = (Date.now() - new Date(originalDoc.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    if (daysSinceCreated < 30) {
+      relevanceScore += 10 // Boost recent content
+    }
+    
+    // Boost based on engagement metrics
+    if (originalDoc.views > 1000) relevanceScore += 5
+    if (originalDoc.likes > 100) relevanceScore += 3
+    
+    // Text analysis scoring
+    const textLength = originalDoc.content?.length || 0
+    if (textLength > 500 && textLength < 2000) {
+      relevanceScore += 2 // Sweet spot for content length
+    }
+    
+    return {
+      ...searchDoc,
+      relevanceScore,
+      searchableText: [
+        originalDoc.title,
+        originalDoc.excerpt,
+        originalDoc.tags?.join(' '),
+      ].filter(Boolean).join(' '),
+      
+      // Add metadata for advanced filtering
+      metadata: {
+        wordCount: textLength,
+        hasImages: originalDoc.images?.length > 0,
+        category: originalDoc.category,
+        publishDate: originalDoc.publishedDate || originalDoc.createdAt,
+      },
+    }
+  },
+  
+  searchOverrides: {
+    fields: ({ defaultFields }) => [
+      ...defaultFields,
+      {
+        name: 'relevanceScore',
+        type: 'number',
+        admin: { position: 'sidebar' },
+      },
+      {
+        name: 'searchableText',
+        type: 'textarea',
+        admin: { readOnly: true },
+      },
+      {
+        name: 'metadata',
+        type: 'json',
+        admin: { position: 'sidebar' },
+      },
+    ],
+  },
+})
+```
+
+#### Multi-language Search
+
+Configure search for multiple languages:
+
+```typescript
+import { buildConfig } from 'payload'
+import { searchPlugin } from '@payloadcms/plugin-search'
+
+export default buildConfig({
+  localization: {
+    locales: ['en', 'es', 'fr'],
+    defaultLocale: 'en',
+  },
+  
+  plugins: [
+    searchPlugin({
+      collections: ['posts', 'pages'],
+      localize: true, // Enable localized search
+      
+      beforeSync: async ({ originalDoc, searchDoc, req }) => {
+        // Create search-optimized content for each locale
+        const locale = req.locale || 'en'
+        
+        return {
+          ...searchDoc,
+          // Locale-specific search content
+          searchableText: [
+            originalDoc.title?.[locale] || originalDoc.title,
+            originalDoc.excerpt?.[locale] || originalDoc.excerpt,
+          ].filter(Boolean).join(' '),
+          
+          // Add language metadata
+          language: locale,
+        }
+      },
+      
+      searchOverrides: {
+        fields: ({ defaultFields }) => [
+          ...defaultFields,
+          {
+            name: 'searchableText',
+            type: 'textarea',
+            localized: true,
+            admin: { readOnly: true },
+          },
+          {
+            name: 'language',
+            type: 'text',
+            admin: { position: 'sidebar' },
+          },
+        ],
+      },
+    }),
+  ],
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `searchPlugin(config: SearchPluginConfig)`
+
+Main plugin function that configures and initializes the search functionality.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `config` | `SearchPluginConfig` | false | Plugin configuration object |
+| `config.collections` | `string[]` | false | Collections to enable for search |
+| `config.defaultPriorities` | `object` | false | Priority settings for collections |
+| `config.searchOverrides` | `object` | false | Search collection customizations |
+| `config.beforeSync` | `BeforeSync` | false | Data transformation hook |
+
+**Returns:** `(config: Config) => Config`
+
+**Example:**
+```typescript
+const plugin = searchPlugin({
+  collections: ['posts', 'pages'],
+  defaultPriorities: { posts: 20, pages: 10 },
+})
+```
+
+### Hooks
+
+#### `syncWithSearch`
+
+Internal hook that synchronizes document changes with the search index.
+
+**Parameters:**
+- Collection document data
+- Plugin configuration
+- Request context
+
+**Returns:** Promise resolving to the original document
+
+#### `deleteFromSearch`
+
+Internal hook that removes documents from the search index when they're deleted.
+
+**Parameters:**
+- Document ID and collection
+- Plugin configuration  
+- Request context
+
+**Returns:** Promise<void>
+
+### Utility Functions
+
+#### `syncDocAsSearchIndex`
+
+Core synchronization function that handles create/update operations for search documents.
+
+#### `generateReindexHandler`
+
+Creates the API endpoint handler for batch reindexing operations.
+
+### React Components
+
+#### `ReindexButtonClient`
+
+Admin UI component that provides reindexing functionality.
+
+**Props:**
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `collectionLabels` | `CollectionLabels` | Collection display names |
+| `searchCollections` | `string[]` | Available collections for reindexing |
+| `searchSlug` | `string` | Search collection slug |
+
+**Example:**
+```tsx
+<ReindexButtonClient
+  collectionLabels={{ posts: 'Blog Posts', pages: 'Pages' }}
+  searchCollections={['posts', 'pages']}
+  searchSlug="search"
+/>
+```
+
+#### `LinkToDocClient`
+
+Admin UI component that displays links to original documents from search results.
+
+**Props:** None (uses field context)
+
+### TypeScript Types
+
+```typescript
+export type SearchPluginConfig = {
+  apiBasePath?: string // Deprecated
+  beforeSync?: BeforeSync
+  collections?: string[]
+  defaultPriorities?: {
+    [collection: string]: ((doc: any) => number | Promise<number>) | number
+  }
+  deleteDrafts?: boolean
+  localize?: boolean
+  reindexBatchSize?: number
+  searchOverrides?: { fields?: FieldsOverride } & Partial<Omit<CollectionConfig, 'fields'>>
+  syncDrafts?: boolean
+}
+
+export type BeforeSync = (args: {
+  originalDoc: { [key: string]: any }
+  payload: Payload
+  req: PayloadRequest
+  searchDoc: DocToSync
+}) => DocToSync | Promise<DocToSync>
+
+export type DocToSync = {
+  [key: string]: any
+  doc: {
+    relationTo: string
+    value: string
+  }
+  title: string
+}
+
+export type FieldsOverride = (args: { defaultFields: Field[] }) => Field[]
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+
+The plugin integrates with PayloadCMS hooks system:
+
+- **afterChange**: Automatically syncs document changes to search index
+- **beforeDelete**: Removes documents from search when deleted
+- **Collection Hooks**: Adds hooks to all enabled collections
+
+### Database Integration
+
+The plugin creates database optimizations:
+
+- **Search Collection**: Dedicated table/collection for search documents
+- **Indexed Fields**: Automatically indexes search-critical fields
+- **Relationship Fields**: Uses proper database relationships for document references
+
+### External Services Integration
+
+The plugin can complement external search services:
+
+- **Algolia**: Use as fallback or primary with plugin as secondary
+- **Elasticsearch**: Parallel indexing for different use cases
+- **Analytics**: Track search queries and results for optimization
+
+## Troubleshooting
+
+### Common Issues
+
+#### Search Results Not Updating
+
+**Problem:** Changes to documents don't appear in search results
+
+**Solution:**
+1. Check that the collection is enabled in plugin configuration
+2. Verify hooks are not being bypassed
+3. Check for errors in server logs during document save
+4. Use the reindex feature to rebuild search index
+
+```typescript
+// Verify collection is enabled
+searchPlugin({
+  collections: ['posts'], // Make sure your collection is listed
+})
+
+// Check if hooks are being bypassed
+payload.update({
+  collection: 'posts',
+  id: documentId,
+  data: updatedData,
+  // Don't use overrideAccess: true if you want hooks to run
+})
+```
+
+#### Poor Search Performance
+
+**Problem:** Search queries are slow despite using the search index
+
+**Solution:**
+1. Ensure database indexes are created properly
+2. Reduce the amount of data stored in search records
+3. Optimize your database configuration
+4. Consider pagination for large result sets
+
+```typescript
+// Optimize search data
+searchPlugin({
+  beforeSync: ({ originalDoc, searchDoc }) => ({
+    ...searchDoc,
+    // Store only essential data for search
+    title: originalDoc.title,
+    excerpt: originalDoc.excerpt?.substring(0, 200), // Limit excerpt length
+    // Don't store heavy fields like rich text content
+  }),
+})
+```
+
+#### Reindexing Failures
+
+**Problem:** Bulk reindexing operation fails or times out
+
+**Solution:**
+1. Reduce batch size for memory-constrained environments
+2. Check database connection limits
+3. Monitor server resources during reindexing
+
+```typescript
+searchPlugin({
+  reindexBatchSize: 25, // Reduce if experiencing memory issues
+})
+```
+
+#### Localization Issues
+
+**Problem:** Search not working correctly with multiple languages
+
+**Solution:**
+1. Verify localization is enabled in PayloadCMS config
+2. Check that search fields are properly localized
+3. Ensure queries specify the correct locale
+
+```typescript
+// Proper localized search query
+const results = await payload.find({
+  collection: 'search',
+  locale: 'es', // Specify locale
+  where: {
+    title: { like: query },
+  },
+})
+```
+
+### Debugging
+
+Enable detailed logging for troubleshooting:
+
+```typescript
+// Add logging to beforeSync hook
+searchPlugin({
+  beforeSync: ({ originalDoc, searchDoc, payload }) => {
+    payload.logger.info(`Syncing search document for ${originalDoc.id}`)
+    
+    const result = {
+      ...searchDoc,
+      // your transformations
+    }
+    
+    payload.logger.info(`Search document data:`, result)
+    return result
+  },
+})
+```
+
+Check search collection directly:
+
+```typescript
+// Debug search collection contents
+const searchDocs = await payload.find({
+  collection: 'search',
+  limit: 100,
+  sort: '-createdAt',
+})
+
+console.log('Search documents:', searchDocs.docs)
+```
+
+Monitor hook execution:
+
+```typescript
+// Add logging to collection hooks to verify they're running
+{
+  slug: 'posts',
+  hooks: {
+    afterChange: [
+      ({ doc, operation }) => {
+        console.log(`Posts afterChange hook fired: ${operation} on ${doc.id}`)
+      },
+    ],
+  },
+}
+```
+
+## Performance
+
+### Performance Optimization
+
+#### Database Optimization
+
+Ensure proper database indexing:
+
+```sql
+-- Example for PostgreSQL (adapt for your database)
+CREATE INDEX idx_search_title ON search_table (title);
+CREATE INDEX idx_search_priority ON search_table (priority);
+CREATE INDEX idx_search_doc_relation ON search_table (doc_relationTo, doc_value);
+CREATE INDEX idx_search_text ON search_table USING gin(to_tsvector('english', title || ' ' || excerpt));
+```
+
+#### Memory Management
+
+Optimize memory usage during operations:
+
+```typescript
+searchPlugin({
+  reindexBatchSize: 25, // Lower for memory-constrained environments
+  
+  beforeSync: ({ originalDoc, searchDoc }) => ({
+    ...searchDoc,
+    // Store minimal data - avoid large text fields
+    title: originalDoc.title?.substring(0, 200),
+    excerpt: originalDoc.excerpt?.substring(0, 500),
+    // Don't store: large rich text, images, complex objects
+  }),
+})
+```
+
+#### Query Optimization
+
+Write efficient search queries:
+
+```typescript
+// Efficient search implementation
+export const optimizedSearch = async (query: string) => {
+  return await payload.find({
+    collection: 'search',
+    where: {
+      or: [
+        { title: { like: query } },
+        { searchableText: { like: query } },
+      ],
+    },
+    sort: '-priority',
+    limit: 20, // Don't over-fetch results
+    depth: 0, // Avoid deep population
+    select: {
+      id: true,
+      title: true,
+      priority: true,
+      doc: true,
+      // Only select needed fields
+    },
+  })
+}
+```
+
+#### Caching Strategy
+
+Implement caching for frequently accessed searches:
+
+```typescript
+import { LRUCache } from 'lru-cache'
+
+const searchCache = new LRUCache<string, any>({
+  max: 500, // Cache up to 500 search results
+  ttl: 1000 * 60 * 5, // 5 minute TTL
+})
+
+export const cachedSearch = async (query: string) => {
+  const cacheKey = `search:${query.toLowerCase()}`
+  
+  // Check cache first
+  const cached = searchCache.get(cacheKey)
+  if (cached) return cached
+  
+  // Perform search
+  const results = await payload.find({
+    collection: 'search',
+    where: { title: { like: query } },
+    sort: '-priority',
+    limit: 20,
+  })
+  
+  // Cache results
+  searchCache.set(cacheKey, results)
+  return results
+}
+```
+
+## Security
+
+### Security Best Practices
+
+1. **Access Control**: Properly configure search collection access
+2. **Input Validation**: Sanitize search queries to prevent injection
+3. **Rate Limiting**: Prevent search API abuse
+4. **Content Filtering**: Ensure only appropriate content is searchable
+
+```typescript
+// Secure search configuration
+searchPlugin({
+  searchOverrides: {
+    access: {
+      // Control who can read search results
+      read: ({ req }) => {
+        // Allow authenticated users only
+        return Boolean(req.user)
+      },
+      
+      // Prevent external creation/updates
+      create: () => false,
+      update: () => false,
+      delete: ({ req }) => {
+        // Only admins can delete search records
+        return req.user?.role === 'admin'
+      },
+    },
+  },
+  
+  beforeSync: ({ originalDoc, searchDoc }) => {
+    // Filter sensitive content
+    return {
+      ...searchDoc,
+      title: originalDoc.title,
+      // Don't include sensitive fields in search
+      excerpt: originalDoc.public ? originalDoc.excerpt : 'Private content',
+    }
+  },
+})
+```
+
+Input sanitization for search queries:
+
+```typescript
+import DOMPurify from 'isomorphic-dompurify'
+
+export const sanitizedSearch = async (rawQuery: string) => {
+  // Sanitize input
+  const query = DOMPurify.sanitize(rawQuery.trim())
+  
+  // Validate query length
+  if (query.length < 2 || query.length > 100) {
+    throw new Error('Invalid query length')
+  }
+  
+  // Rate limiting (implement with your preferred method)
+  await rateLimitCheck(req.ip)
+  
+  return await payload.find({
+    collection: 'search',
+    where: { title: { like: query } },
+    sort: '-priority',
+    limit: 20,
+  })
+}
+```
+
+## Example Projects
+
+- [PayloadCMS Website](https://github.com/payloadcms/website) - Full implementation with search functionality
+- [E-commerce Template](https://github.com/payloadcms/payload/tree/main/examples/ecommerce) - Product search implementation
+- [Blog Template](https://github.com/payloadcms/payload/tree/main/examples/blog) - Content search with categories
+- [Multi-tenant SaaS](https://github.com/payloadcms/payload/tree/main/examples/multi-tenant) - Tenant-scoped search
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues) or submit a Pull Request.
+
+## License
+
+MIT License - see [LICENSE.md](./LICENSE.md) for details.

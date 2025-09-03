@@ -1,0 +1,1225 @@
+---
+title: Stripe Plugin
+label: Stripe
+order: 110
+desc: Easily accept payments with Stripe
+keywords: plugins, stripe, payments, ecommerce, saas, subscriptions, licensing, webhooks, rest api
+---
+
+<Banner type="warning">
+**Original Documentation**: The content below comes from [official PayloadCMS documentation](https://github.com/payloadcms/payload/tree/main/docs/plugins/stripe.mdx).
+Further in the document, you'll find an extended, more detailed version of this documentation.
+</Banner>
+
+![https://www.npmjs.com/package/@payloadcms/plugin-stripe](https://img.shields.io/npm/v/@payloadcms/plugin-stripe)
+
+With this plugin you can easily integrate [Stripe](https://stripe.com) into Payload. Simply provide your Stripe credentials and this plugin will open up a two-way communication channel between the two platforms. This enables you to easily sync data back and forth, as well as proxy the Stripe REST API through Payload's [Access Control](../access-control/overview). Use this plugin to completely offload billing to Stripe and retain full control over your application's data.
+
+For example, you might be building an e-commerce or SaaS application, where you have a `products` or a `plans` collection that requires either a one-time payment or a subscription. You can to tie each of these products to Stripe, then easily subscribe to billing-related events to perform your application's business logic, such as active purchases or subscription cancellations.
+
+To build a checkout flow on your front-end you can either use [Stripe Checkout](https://stripe.com/payments/checkout), or you can also build a completely custom checkout experience from scratch using [Stripe Web Elements](https://stripe.com/docs/payments/elements). Then to build fully custom, secure customer dashboards, you can leverage Payload's Access Control to restrict access to your Stripe resources so your users never have to leave your site to manage their accounts.
+
+The beauty of this plugin is the entirety of your application's content and business logic can be handled in Payload while Stripe handles solely the billing and payment processing. You can build a completely proprietary application that is endlessly customizable and extendable, on APIs and databases that you own. Hosted services like Shopify or BigCommerce might fracture your application's content then charge you for access.
+
+<Banner type="info">
+  This plugin is completely open-source and the [source code can be found
+  here](https://github.com/payloadcms/payload/tree/main/packages/plugin-stripe).
+  If you need help, check out our [Community
+  Help](https://payloadcms.com/community-help). If you think you've found a bug,
+  please [open a new
+  issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%20stripe&template=bug_report.md&title=plugin-stripe%3A)
+  with as much detail as possible.
+</Banner>
+
+## Core features
+
+- Hides your Stripe credentials when shipping SaaS applications
+- Allows restricted keys through [Payload access control](https://payloadcms.com/docs/access-control/overview)
+- Enables a two-way communication channel between Stripe and Payload
+- Proxies the [Stripe REST API](https://stripe.com/docs/api)
+- Proxies [Stripe webhooks](https://stripe.com/docs/webhooks)
+- Automatically syncs data between the two platforms
+
+## Installation
+
+Install the plugin using any JavaScript package manager like [pnpm](https://pnpm.io), [npm](https://npmjs.com), or [Yarn](https://yarnpkg.com):
+
+```bash
+  pnpm add @payloadcms/plugin-stripe
+```
+
+## Basic Usage
+
+In the `plugins` array of your [Payload Config](https://payloadcms.com/docs/configuration/overview), call the plugin with [options](#options):
+
+```ts
+import { buildConfig } from 'payload'
+import { stripePlugin } from '@payloadcms/plugin-stripe'
+
+const config = buildConfig({
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    }),
+  ],
+})
+
+export default config
+```
+
+### Options
+
+| Option                         | Type               | Default     | Description                                                                                                              |
+| ------------------------------ | ------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `stripeSecretKey` \*           | string             | `undefined` | Your Stripe secret key                                                                                                   |
+| `stripeWebhooksEndpointSecret` | string             | `undefined` | Your Stripe webhook endpoint secret                                                                                      |
+| `rest`                         | boolean            | `false`     | When `true`, opens the `/api/stripe/rest` endpoint                                                                       |
+| `webhooks`                     | object or function | `undefined` | Either a function to handle all webhooks events, or an object of Stripe webhook handlers, keyed to the name of the event |
+| `sync`                         | array              | `undefined` | An array of sync configs                                                                                                 |
+| `logs`                         | boolean            | `false`     | When `true`, logs sync events to the console as they happen                                                              |
+
+_\* An asterisk denotes that a property is required._
+
+## Endpoints
+
+The following custom endpoints are automatically opened for you:
+
+| Endpoint               | Method | Description                                                                                                                                                                                                                                |
+| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/api/stripe/rest`     | `POST` | Proxies the [Stripe REST API](https://stripe.com/docs/api) behind [Payload access control](https://payloadcms.com/docs/access-control/overview) and returns the result. See the [REST Proxy](#stripe-rest-proxy) section for more details. |
+| `/api/stripe/webhooks` | `POST` | Handles all Stripe webhook events                                                                                                                                                                                                          |
+
+##### Stripe REST Proxy
+
+If `rest` is true, proxies the [Stripe REST API](https://stripe.com/docs/api) behind [Payload access control](https://payloadcms.com/docs/access-control/overview) and returns the result. This flag should only be used for local development, see the security note below for more information.
+
+```ts
+const res = await fetch(`/api/stripe/rest`, {
+  method: 'POST',
+  credentials: 'include',
+  headers: {
+    'Content-Type': 'application/json',
+    // Authorization: `JWT ${token}` // NOTE: do this if not in a browser (i.e. curl or Postman)
+  },
+  body: JSON.stringify({
+    stripeMethod: 'stripe.subscriptions.list',
+    stripeArgs: [
+      {
+        customer: 'abc',
+      },
+    ],
+  }),
+})
+```
+
+If you need to proxy the API server-side, use the [stripeProxy](#node) function.
+
+<Banner type="info">
+  **Note:**
+
+The `/api` part of these routes may be different based on the settings defined in your Payload
+config.
+
+</Banner>
+
+<Banner type="warning">
+  **Warning:**
+
+Opening the REST proxy endpoint in production is a potential security risk. Authenticated users will have open access to the Stripe REST API. In production, open your own endpoint and use the [stripeProxy](#node) function to proxy the Stripe API server-side.
+
+</Banner>
+
+## Webhooks
+
+[Stripe webhooks](https://stripe.com/docs/webhooks) are used to sync from Stripe to Payload. Webhooks listen for events on your Stripe account so you can trigger reactions to them. Follow the steps below to enable webhooks.
+
+Development:
+
+1. Login using Stripe cli `stripe login`
+1. Forward events to localhost `stripe listen --forward-to localhost:3000/api/stripe/webhooks`
+1. Paste the given secret into your `.env` file as `STRIPE_WEBHOOKS_ENDPOINT_SECRET`
+
+Production:
+
+1. Login and [create a new webhook](https://dashboard.stripe.com/test/webhooks/create) from the Stripe dashboard
+1. Paste `YOUR_DOMAIN_NAME/api/stripe/webhooks` as the "Webhook Endpoint URL"
+1. Select which events to broadcast
+1. Paste the given secret into your `.env` file as `STRIPE_WEBHOOKS_ENDPOINT_SECRET`
+1. Then, handle these events using the `webhooks` portion of this plugin's config:
+
+```ts
+import { buildConfig } from 'payload'
+import stripePlugin from '@payloadcms/plugin-stripe'
+
+const config = buildConfig({
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+      stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+      webhooks: {
+        'customer.subscription.updated': ({ event, stripe, stripeConfig }) => {
+          // do something...
+        },
+      },
+      // NOTE: you can also catch all Stripe webhook events and handle the event types yourself
+      // webhooks: (event, stripe, stripeConfig) => {
+      //   switch (event.type): {
+      //     case 'customer.subscription.updated': {
+      //       // do something...
+      //       break;
+      //     }
+      //     default: {
+      //       break;
+      //     }
+      //   }
+      // }
+    }),
+  ],
+})
+
+export default config
+```
+
+For a full list of available webhooks, see [here](https://stripe.com/docs/cli/trigger#trigger-event).
+
+## Node
+
+On the server you should interface with Stripe directly using the [stripe](https://www.npmjs.com/package/stripe) npm module. That might look something like this:
+
+```ts
+import Stripe from 'stripe'
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY
+const stripe = new Stripe(stripeSecretKey, {
+  apiVersion: '2022-08-01',
+})
+
+export const MyFunction = async () => {
+  try {
+    const customer = await stripe.customers.create({
+      email: data.email,
+    })
+
+    // do something...
+  } catch (error) {
+    console.error(error.message)
+  }
+}
+```
+
+Alternatively, you can interface with the Stripe using the `stripeProxy`, which is exactly what the `/api/stripe/rest` endpoint does behind-the-scenes. Here's the same example as above, but piped through the proxy:
+
+```ts
+import { stripeProxy } from '@payloadcms/plugin-stripe'
+
+export const MyFunction = async () => {
+  try {
+    const customer = await stripeProxy({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+      stripeMethod: 'customers.create',
+      stripeArgs: [
+        {
+          email: data.email,
+        },
+      ],
+    })
+
+    if (customer.status === 200) {
+      // do something...
+    }
+
+    if (customer.status >= 400) {
+      throw new Error(customer.message)
+    }
+  } catch (error) {
+    console.error(error.message)
+  }
+}
+```
+
+## Sync
+
+This option will setup a basic sync between Payload collections and Stripe resources for you automatically. It will create all the necessary hooks and webhooks handlers, so the only thing you have to do is map your Payload fields to their corresponding Stripe properties. As documents are created, updated, and deleted from either Stripe or Payload, the changes are reflected on either side.
+
+<Banner type="info">
+  **Note:**
+
+If you wish to enable a _two-way_ sync, be sure to setup [`webhooks`](#webhooks) and pass the
+`stripeWebhooksEndpointSecret` through your config.
+
+</Banner>
+
+```ts
+import { buildConfig } from 'payload'
+import stripePlugin from '@payloadcms/plugin-stripe'
+
+const config = buildConfig({
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+      stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+      sync: [
+        {
+          collection: 'customers',
+          stripeResourceType: 'customers',
+          stripeResourceTypeSingular: 'customer',
+          fields: [
+            {
+              fieldPath: 'name', // this is a field on your own Payload Config
+              stripeProperty: 'name', // use dot notation, if applicable
+            },
+          ],
+        },
+      ],
+    }),
+  ],
+})
+
+export default config
+```
+
+<Banner type="warning">
+  **Note:**
+
+Due to limitations in the Stripe API, this currently only works with top-level fields. This is
+because every Stripe object is a separate entity, making it difficult to abstract into a simple
+reusable library. In the future, we may find a pattern around this. But for now, cases like that
+will need to be hard-coded.
+
+</Banner>
+
+Using `sync` will do the following:
+
+- Adds and maintains a `stripeID` read-only field on each collection, this is a field generated _by Stripe_ and used as a cross-reference
+- Adds a direct link to the resource on Stripe.com
+- Adds and maintains an `skipSync` read-only flag on each collection to prevent infinite syncs when hooks trigger webhooks
+- Adds the following hooks to each collection:
+  - `beforeValidate`: `createNewInStripe`
+  - `beforeChange`: `syncExistingWithStripe`
+  - `afterDelete`: `deleteFromStripe`
+- Handles the following Stripe webhooks
+  - `STRIPE_TYPE.created`: `handleCreatedOrUpdated`
+  - `STRIPE_TYPE.updated`: `handleCreatedOrUpdated`
+  - `STRIPE_TYPE.deleted`: `handleDeleted`
+
+## TypeScript
+
+All types can be directly imported:
+
+```ts
+import {
+  StripeConfig,
+  StripeWebhookHandler,
+  StripeProxy,
+  ...
+} from '@payloadcms/plugin-stripe/types';
+```
+
+---
+
+## 📚 Extended Documentation
+
+<Banner type="success">
+**Note**: The documentation below has been automatically generated based on source code analysis and contains more detailed information than the original documentation above.
+</Banner>
+
+![NPM Version](https://img.shields.io/npm/v/@payloadcms/plugin-stripe)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/@payloadcms/plugin-stripe)
+
+## Detailed Overview
+
+The Stripe plugin provides a comprehensive integration between PayloadCMS and Stripe, enabling developers to build sophisticated payment and subscription systems. This plugin serves as a bridge between your content management system and Stripe's payment infrastructure, allowing for seamless data synchronization and secure API interactions.
+
+Key benefits of this plugin include:
+- **Unified Architecture**: Manage your application content in Payload while handling payments through Stripe
+- **Automatic Synchronization**: Bidirectional sync between Payload collections and Stripe resources
+- **Security**: Proxies Stripe API calls through Payload's access control system
+- **Flexibility**: Supports both simple payment flows and complex subscription models
+- **Developer Experience**: TypeScript support and comprehensive webhook handling
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/plugin-stripe). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: `workspace:*` (latest version)
+- **Node.js**: 14.x or higher
+- **TypeScript**: 4.5 or higher
+- **Stripe Account**: Active Stripe account with API keys
+
+### Additional Dependencies
+
+- **stripe**: `^10.2.0` - Official Stripe Node.js library
+- **lodash.get**: `^4.4.2` - For nested object property access
+- **uuid**: `10.0.0` - For generating unique identifiers
+
+## Installation
+
+```bash
+# npm
+npm install @payloadcms/plugin-stripe
+
+# yarn
+yarn add @payloadcms/plugin-stripe
+
+# pnpm
+pnpm add @payloadcms/plugin-stripe
+```
+
+### Peer Dependencies
+This package requires the following peer dependency:
+```bash
+npm install payload
+```
+
+## Quick Start
+
+Basic configuration with environment variables:
+
+```typescript
+// payload.config.ts
+import { buildConfig } from 'payload'
+import { stripePlugin } from '@payloadcms/plugin-stripe'
+
+const config = buildConfig({
+  plugins: [
+    stripePlugin({
+      // Required: Your Stripe secret key
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+      // Optional: Enable logging for debugging
+      logs: process.env.NODE_ENV === 'development',
+    }),
+  ],
+})
+
+export default config
+```
+
+### Environment Variables
+```bash
+# Required
+STRIPE_SECRET_KEY=sk_test_...
+
+# Optional (for webhook functionality)
+STRIPE_WEBHOOKS_ENDPOINT_SECRET=whsec_...
+```
+
+## Detailed Configuration
+
+### Main Options
+
+#### `stripeSecretKey`
+
+- **Type**: `string`
+- **Default value**: `undefined`
+- **Required**: `true`
+
+Your Stripe secret key, obtained from your Stripe dashboard. This should always be stored as an environment variable and never committed to version control.
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+})
+```
+
+#### `stripeWebhooksEndpointSecret`
+
+- **Type**: `string`
+- **Default value**: `undefined`
+- **Required**: `false`
+
+The webhook endpoint secret from Stripe, used to verify that webhooks are actually coming from Stripe. Required for webhook functionality and two-way sync.
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+})
+```
+
+#### `rest`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: `false`
+
+Enables the `/api/stripe/rest` endpoint for proxying Stripe API calls. **Warning**: Only enable this in development environments as it exposes the Stripe API to authenticated users.
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  rest: process.env.NODE_ENV === 'development',
+})
+```
+
+#### `webhooks`
+
+- **Type**: `StripeWebhookHandler | StripeWebhookHandlers`
+- **Default value**: `undefined`
+- **Required**: `false`
+
+Configure webhook event handlers. Can be either a single function to handle all events or an object mapping event types to specific handlers.
+
+```typescript
+// Object mapping approach
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  webhooks: {
+    'customer.subscription.created': async ({ event, stripe, payload, req }) => {
+      // Handle new subscription
+      const subscription = event.data.object as Stripe.Subscription
+      
+      // Update user record or send welcome email
+      await payload.update({
+        collection: 'users',
+        where: { stripeCustomerID: { equals: subscription.customer } },
+        data: { subscriptionStatus: 'active' }
+      })
+    },
+    'invoice.payment_failed': async ({ event, payload }) => {
+      // Handle payment failures
+      const invoice = event.data.object as Stripe.Invoice
+      // Send notification or update user status
+    }
+  }
+})
+
+// Single function approach
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  webhooks: async ({ event, stripe, payload, req }) => {
+    switch (event.type) {
+      case 'customer.subscription.created':
+        // Handle subscription creation
+        break
+      case 'invoice.payment_failed':
+        // Handle payment failure
+        break
+      default:
+        console.log(`Unhandled event type: ${event.type}`)
+    }
+  }
+})
+```
+
+#### `sync`
+
+- **Type**: `SyncConfig[]`
+- **Default value**: `[]`
+- **Required**: `false`
+
+Configure automatic synchronization between Payload collections and Stripe resources. This creates hooks and webhook handlers to keep data in sync.
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  sync: [
+    {
+      collection: 'customers',
+      stripeResourceType: 'customers',
+      stripeResourceTypeSingular: 'customer',
+      fields: [
+        { fieldPath: 'name', stripeProperty: 'name' },
+        { fieldPath: 'email', stripeProperty: 'email' },
+        { fieldPath: 'phone', stripeProperty: 'phone' }
+      ]
+    },
+    {
+      collection: 'products',
+      stripeResourceType: 'products',
+      stripeResourceTypeSingular: 'product',
+      fields: [
+        { fieldPath: 'title', stripeProperty: 'name' },
+        { fieldPath: 'description', stripeProperty: 'description' }
+      ]
+    }
+  ]
+})
+```
+
+##### Sync Configuration Sub-options:
+
+- **`collection`**: The slug of the Payload collection to sync
+- **`stripeResourceType`**: The plural Stripe resource type (e.g., 'customers', 'products')
+- **`stripeResourceTypeSingular`**: The singular Stripe resource type (e.g., 'customer', 'product')
+- **`fields`**: Array of field mappings between Payload and Stripe
+
+#### `logs`
+
+- **Type**: `boolean`
+- **Default value**: `false`
+- **Required**: `false`
+
+Enable detailed logging of sync operations and webhook events. Useful for debugging during development.
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  logs: process.env.NODE_ENV === 'development',
+})
+```
+
+### Configuration Schema
+
+```typescript
+interface StripePluginConfig {
+  // Required Stripe secret key
+  stripeSecretKey: string
+  
+  // Optional webhook endpoint secret
+  stripeWebhooksEndpointSecret?: string
+  
+  // Enable REST API proxy (development only)
+  rest?: boolean
+  
+  // Webhook event handlers
+  webhooks?: StripeWebhookHandler | StripeWebhookHandlers
+  
+  // Sync configuration for collections
+  sync?: SyncConfig[]
+  
+  // Enable detailed logging
+  logs?: boolean
+  
+  // Internal flag for test keys (set automatically)
+  isTestKey?: boolean
+}
+
+interface SyncConfig {
+  collection: CollectionSlug
+  stripeResourceType: 'customers' | 'products'
+  stripeResourceTypeSingular: 'customer' | 'product'
+  fields: FieldSyncConfig[]
+}
+
+interface FieldSyncConfig {
+  fieldPath: string      // Path to field in Payload collection
+  stripeProperty: string // Corresponding Stripe property (supports dot notation)
+}
+```
+
+## Usage Guides
+
+### Setting Up Customer Sync
+
+Step-by-step guide to synchronize customer data between Payload and Stripe:
+
+```typescript
+// 1. Configure the plugin with customer sync
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'customers',
+      fields: [
+        { name: 'name', type: 'text', required: true },
+        { name: 'email', type: 'email', required: true },
+        { name: 'phone', type: 'text' },
+        // stripeID, skipSync, and docUrl fields are added automatically
+      ]
+    }
+  ],
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+      stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+      sync: [
+        {
+          collection: 'customers',
+          stripeResourceType: 'customers',
+          stripeResourceTypeSingular: 'customer',
+          fields: [
+            { fieldPath: 'name', stripeProperty: 'name' },
+            { fieldPath: 'email', stripeProperty: 'email' },
+            { fieldPath: 'phone', stripeProperty: 'phone' }
+          ]
+        }
+      ],
+      logs: true
+    })
+  ]
+})
+
+// 2. Create a customer in Payload - automatically syncs to Stripe
+const customer = await payload.create({
+  collection: 'customers',
+  data: {
+    name: 'John Doe',
+    email: 'john@example.com',
+    phone: '+1234567890'
+  }
+})
+// This creates a corresponding customer in Stripe and stores the Stripe ID
+
+// 3. Update customer - changes sync both ways
+await payload.update({
+  collection: 'customers',
+  id: customer.id,
+  data: { phone: '+0987654321' }
+})
+// Updates both Payload and Stripe records
+```
+
+### Creating a Subscription Flow
+
+Complete example for handling subscription-based products:
+
+```typescript
+// 1. Set up product and pricing collections
+const config = buildConfig({
+  collections: [
+    {
+      slug: 'products',
+      fields: [
+        { name: 'name', type: 'text', required: true },
+        { name: 'description', type: 'textarea' },
+        { name: 'price', type: 'number', required: true },
+        { name: 'interval', type: 'select', options: ['month', 'year'] }
+      ]
+    },
+    {
+      slug: 'subscriptions',
+      fields: [
+        { name: 'customer', type: 'relationship', relationTo: 'customers' },
+        { name: 'product', type: 'relationship', relationTo: 'products' },
+        { name: 'status', type: 'select', options: ['active', 'canceled', 'past_due'] }
+      ]
+    }
+  ],
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+      stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+      sync: [
+        {
+          collection: 'products',
+          stripeResourceType: 'products',
+          stripeResourceTypeSingular: 'product',
+          fields: [
+            { fieldPath: 'name', stripeProperty: 'name' },
+            { fieldPath: 'description', stripeProperty: 'description' }
+          ]
+        }
+      ],
+      webhooks: {
+        'customer.subscription.created': async ({ event, payload }) => {
+          const subscription = event.data.object as Stripe.Subscription
+          
+          // Create subscription record in Payload
+          await payload.create({
+            collection: 'subscriptions',
+            data: {
+              stripeID: subscription.id,
+              customer: subscription.customer,
+              status: 'active',
+              skipSync: true // Prevent webhook loop
+            }
+          })
+        },
+        'customer.subscription.updated': async ({ event, payload }) => {
+          const subscription = event.data.object as Stripe.Subscription
+          
+          // Update subscription status
+          await payload.update({
+            collection: 'subscriptions',
+            where: { stripeID: { equals: subscription.id } },
+            data: { 
+              status: subscription.status,
+              skipSync: true 
+            }
+          })
+        }
+      }
+    })
+  ]
+})
+
+// 2. Create subscription server-side
+import Stripe from 'stripe'
+
+export const createSubscription = async (customerId: string, priceId: string) => {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: '2022-08-01'
+  })
+  
+  const subscription = await stripe.subscriptions.create({
+    customer: customerId,
+    items: [{ price: priceId }],
+    payment_behavior: 'default_incomplete',
+    payment_settings: { save_default_payment_method: 'on_subscription' },
+    expand: ['latest_invoice.payment_intent']
+  })
+  
+  return subscription
+}
+```
+
+### Advanced Patterns
+
+#### Custom Webhook Handler with Business Logic
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  webhooks: async ({ event, payload, req, stripe }) => {
+    const { type, data } = event
+    
+    // Custom business logic based on event type
+    switch (type) {
+      case 'checkout.session.completed': {
+        const session = data.object as Stripe.Checkout.Session
+        
+        // Grant access to paid content
+        if (session.mode === 'subscription') {
+          await payload.update({
+            collection: 'users',
+            where: { email: { equals: session.customer_email } },
+            data: { 
+              subscriptionActive: true,
+              subscriptionId: session.subscription as string
+            }
+          })
+          
+          // Send welcome email
+          await sendWelcomeEmail(session.customer_email!)
+        }
+        break
+      }
+      
+      case 'invoice.payment_failed': {
+        const invoice = data.object as Stripe.Invoice
+        
+        // Handle payment failure
+        await payload.update({
+          collection: 'users',
+          where: { stripeCustomerID: { equals: invoice.customer as string } },
+          data: { subscriptionActive: false }
+        })
+        
+        // Send payment failed email
+        await sendPaymentFailedEmail(invoice.customer_email!)
+        break
+      }
+      
+      case 'customer.subscription.deleted': {
+        const subscription = data.object as Stripe.Subscription
+        
+        // Revoke access
+        await payload.update({
+          collection: 'users',
+          where: { stripeCustomerID: { equals: subscription.customer as string } },
+          data: { 
+            subscriptionActive: false,
+            subscriptionId: null
+          }
+        })
+        break
+      }
+    }
+  }
+})
+```
+
+## API Reference
+
+### Functions
+
+#### `stripePlugin(config: StripePluginConfig)`
+
+Main plugin function that configures the Stripe integration for Payload.
+
+**Parameters:**
+- `config`: `StripePluginConfig` - Configuration object containing Stripe credentials and sync settings
+
+**Returns:** `(config: Config) => Config` - A function that modifies the Payload configuration
+
+**Example:**
+```typescript
+import { stripePlugin } from '@payloadcms/plugin-stripe'
+
+const config = buildConfig({
+  plugins: [
+    stripePlugin({
+      stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+      sync: [/* sync configurations */],
+      webhooks: {/* webhook handlers */}
+    })
+  ]
+})
+```
+
+#### `stripeProxy(args: StripeProxyArgs)`
+
+Utility function to proxy Stripe API calls with proper error handling.
+
+**Parameters:**
+- `stripeSecretKey`: `string` - Stripe secret key
+- `stripeMethod`: `string` - Stripe method to call (e.g., 'customers.create')
+- `stripeArgs`: `any[]` - Arguments to pass to the Stripe method
+
+**Returns:** `Promise<{ data?: any; message?: string; status: number }>`
+
+**Example:**
+```typescript
+import { stripeProxy } from '@payloadcms/plugin-stripe'
+
+const result = await stripeProxy({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  stripeMethod: 'customers.create',
+  stripeArgs: [
+    {
+      email: 'customer@example.com',
+      name: 'John Doe'
+    }
+  ]
+})
+
+if (result.status === 200) {
+  console.log('Customer created:', result.data)
+}
+```
+
+### React Components
+
+#### `LinkToDoc`
+
+UI component that provides a direct link to the corresponding Stripe resource in the Stripe dashboard.
+
+**Props:**
+- `isTestKey`: `boolean` - Whether using Stripe test keys
+- `nameOfIDField`: `string` - Name of the field containing the Stripe ID
+- `stripeResourceType`: `string` - Type of Stripe resource to link to
+
+**Example:**
+```tsx
+// This component is automatically added to synced collections
+// It appears in the sidebar and links to the Stripe dashboard
+```
+
+### Hooks
+
+#### Collection Hooks
+
+The plugin automatically adds these hooks to synced collections:
+
+##### `createNewInStripe`
+
+**Parameters:**
+- Standard Payload hook parameters plus collection and plugin config
+
+**Returns:**
+Promise that resolves to the document data with Stripe ID
+
+**Example:**
+```typescript
+// Automatically called when creating documents in synced collections
+// Creates corresponding resource in Stripe and adds stripeID to document
+```
+
+##### `syncExistingWithStripe`
+
+**Parameters:**
+- Standard Payload hook parameters plus collection and plugin config
+
+**Returns:**
+Promise that resolves to updated document data
+
+**Example:**
+```typescript
+// Automatically called when updating documents in synced collections
+// Syncs changes to corresponding Stripe resource
+```
+
+##### `deleteFromStripe`
+
+**Parameters:**
+- Standard Payload hook parameters plus collection and plugin config
+
+**Returns:**
+Promise that resolves when deletion is complete
+
+**Example:**
+```typescript
+// Automatically called when deleting documents from synced collections
+// Removes corresponding resource from Stripe
+```
+
+### TypeScript Types
+
+```typescript
+// Main plugin configuration
+export interface StripePluginConfig {
+  stripeSecretKey: string
+  stripeWebhooksEndpointSecret?: string
+  rest?: boolean
+  webhooks?: StripeWebhookHandler | StripeWebhookHandlers
+  sync?: SyncConfig[]
+  logs?: boolean
+  isTestKey?: boolean
+}
+
+// Webhook handler function signature
+export type StripeWebhookHandler<T = any> = (args: {
+  config: PayloadConfig
+  event: T
+  payload: Payload
+  pluginConfig?: StripePluginConfig
+  req: PayloadRequest
+  stripe: Stripe
+}) => Promise<void> | void
+
+// Multiple webhook handlers
+export type StripeWebhookHandlers = {
+  [webhookName: string]: StripeWebhookHandler
+}
+
+// Sync configuration for collections
+export interface SyncConfig {
+  collection: CollectionSlug
+  stripeResourceType: 'customers' | 'products'
+  stripeResourceTypeSingular: 'customer' | 'product'
+  fields: FieldSyncConfig[]
+}
+
+// Field mapping configuration
+export interface FieldSyncConfig {
+  fieldPath: string      // Path to field in Payload document
+  stripeProperty: string // Stripe object property (supports dot notation)
+}
+
+// Stripe proxy function type
+export type StripeProxy = (args: {
+  stripeArgs: any[]
+  stripeMethod: string
+  stripeSecretKey: string
+}) => Promise<{
+  data?: any
+  message?: string
+  status: number
+}>
+```
+
+## Integrations
+
+### PayloadCMS Hooks
+
+The plugin integrates with Payload's hook system to provide automatic synchronization:
+
+- **`beforeValidate`**: Creates new resources in Stripe when documents are created in Payload
+- **`beforeChange`**: Updates existing Stripe resources when Payload documents are modified
+- **`afterDelete`**: Removes Stripe resources when corresponding Payload documents are deleted
+
+### Database
+
+The plugin automatically adds these fields to synced collections:
+
+**`stripeID`**
+- Type: `text`
+- Admin position: `sidebar`
+- Read-only: `true`
+- Stores the Stripe resource ID for cross-reference
+
+**`skipSync`**
+- Type: `checkbox`
+- Admin position: `sidebar`
+- Read-only: `true`
+- Prevents infinite sync loops when set to `true`
+
+**`docUrl`**
+- Type: `ui`
+- Admin position: `sidebar`
+- Renders a link to the corresponding Stripe dashboard page
+
+### External Services
+
+#### Stripe API Integration
+
+The plugin uses Stripe API version `2022-08-01` and integrates with:
+- **Customer Management**: Sync customer data and handle subscription lifecycle
+- **Product Catalog**: Manage products and pricing information
+- **Webhook Events**: Real-time synchronization via Stripe webhooks
+- **Payment Processing**: Proxy API calls while maintaining security
+
+## Troubleshooting
+
+### Common Issues
+
+#### Webhook Events Not Being Received
+
+**Problem:** Stripe webhooks are not triggering the configured handlers
+
+**Solution:**
+1. Verify webhook endpoint secret is correctly configured
+2. Ensure the webhook URL is accessible (use ngrok for local development)
+3. Check that webhook events are selected in Stripe dashboard
+4. Verify webhook signature validation
+
+**Example:**
+```typescript
+// Correct webhook configuration
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET, // Must be set
+  webhooks: {
+    'customer.created': ({ event }) => {
+      console.log('Customer created:', event.data.object)
+    }
+  }
+})
+```
+
+#### Sync Not Working Properly
+
+**Problem:** Changes in Payload are not syncing to Stripe or vice versa
+
+**Solution:**
+1. Check that sync configuration matches your collection structure
+2. Verify field mappings are correct
+3. Ensure webhook endpoint secret is configured for two-way sync
+4. Check logs for sync errors
+
+**Example:**
+```typescript
+// Correct sync configuration
+sync: [
+  {
+    collection: 'customers', // Must match collection slug exactly
+    stripeResourceType: 'customers',
+    stripeResourceTypeSingular: 'customer',
+    fields: [
+      { fieldPath: 'name', stripeProperty: 'name' }, // Field names must match exactly
+      { fieldPath: 'email', stripeProperty: 'email' }
+    ]
+  }
+]
+```
+
+#### REST Proxy Authentication Errors
+
+**Problem:** Getting 401/403 errors when using the REST proxy
+
+**Solution:**
+1. Ensure user is authenticated in Payload
+2. Verify REST proxy is enabled (`rest: true`)
+3. Check that user has proper permissions
+4. Only use REST proxy in development
+
+**Example:**
+```typescript
+// Using REST proxy with proper authentication
+const response = await fetch('/api/stripe/rest', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `JWT ${authToken}` // Required for server-side calls
+  },
+  credentials: 'include', // Required for browser-based calls
+  body: JSON.stringify({
+    stripeMethod: 'customers.list',
+    stripeArgs: [{ limit: 10 }]
+  })
+})
+```
+
+#### Test vs Production Key Issues
+
+**Problem:** Plugin behaving differently between test and production
+
+**Solution:**
+1. Ensure you're using the correct Stripe keys for each environment
+2. Set up separate webhook endpoints for test and production
+3. Use environment variables to manage configuration
+
+**Example:**
+```typescript
+// Environment-specific configuration
+stripePlugin({
+  stripeSecretKey: process.env.NODE_ENV === 'production' 
+    ? process.env.STRIPE_SECRET_KEY_PROD!
+    : process.env.STRIPE_SECRET_KEY_TEST!,
+  stripeWebhooksEndpointSecret: process.env.NODE_ENV === 'production'
+    ? process.env.STRIPE_WEBHOOK_SECRET_PROD
+    : process.env.STRIPE_WEBHOOK_SECRET_TEST
+})
+```
+
+### Debugging
+
+Enable detailed logging to troubleshoot issues:
+
+```typescript
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!,
+  logs: true, // Enable detailed logging
+  // ... other config
+})
+```
+
+Use Stripe CLI for local webhook testing:
+```bash
+# Forward webhooks to local development server
+stripe listen --forward-to localhost:3000/api/stripe/webhooks
+
+# Test specific webhook events
+stripe trigger customer.created
+```
+
+## Performance
+
+### Performance Optimization
+
+1. **Webhook Filtering**: Only subscribe to webhooks you actually need
+2. **Field Mapping**: Limit synced fields to essential data only
+3. **Batch Operations**: Use Stripe's bulk operations when possible
+4. **Caching**: Implement caching for frequently accessed Stripe data
+
+```typescript
+// Optimized sync configuration
+sync: [
+  {
+    collection: 'customers',
+    stripeResourceType: 'customers',
+    stripeResourceTypeSingular: 'customer',
+    fields: [
+      // Only sync essential fields
+      { fieldPath: 'email', stripeProperty: 'email' },
+      { fieldPath: 'name', stripeProperty: 'name' }
+      // Avoid syncing large description fields or metadata
+    ]
+  }
+]
+```
+
+## Security
+
+### Security Best Practices
+
+1. **Environment Variables**: Always store API keys in environment variables
+2. **Webhook Secrets**: Use webhook endpoint secrets to verify webhook authenticity
+3. **Access Control**: Implement proper Payload access control for Stripe-related collections
+4. **REST Proxy**: Never enable REST proxy in production environments
+5. **Key Management**: Use restricted API keys with minimum required permissions
+
+```typescript
+// Secure configuration example
+stripePlugin({
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY!, // Never hardcode
+  stripeWebhooksEndpointSecret: process.env.STRIPE_WEBHOOKS_ENDPOINT_SECRET,
+  rest: process.env.NODE_ENV === 'development', // Only in development
+  logs: process.env.NODE_ENV === 'development' // Avoid logging sensitive data in production
+})
+```
+
+## Example Projects
+
+- [SaaS Starter](https://github.com/payloadcms/payload/tree/main/examples/stripe-subscriptions) - Complete subscription management system
+- [E-commerce Store](https://github.com/payloadcms/payload/tree/main/examples/ecommerce) - Product catalog with Stripe integration
+- [Digital Downloads](https://github.com/payloadcms/payload/tree/main/examples/digital-products) - Selling digital products with instant access
+
+## Contributing
+
+Found a bug or have a suggestion? [Open an issue](https://github.com/payloadcms/payload/issues/new?assignees=&labels=plugin%3A%20stripe&template=bug_report.md&title=plugin-stripe%3A) or submit a Pull Request.
+
+## License
+
+MIT License - see the [LICENSE.md](https://github.com/payloadcms/payload/blob/main/packages/plugin-stripe/LICENSE.md) file for details.
