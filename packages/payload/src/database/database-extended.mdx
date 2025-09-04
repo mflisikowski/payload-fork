@@ -1,0 +1,190 @@
+---
+title: Database
+label: Database
+order: 4
+desc: In-depth documentation of the Payload CMS database layer, covering adapters, migrations, and query validation.
+keywords: [payload, cms, database, adapter, migrations, query, validation]
+---
+
+![NPM Version](https://img.shields.io/npm/v/payload)
+![Bundle Size](https://img.shields.io/bundlephobia/minzip/payload)
+
+## Detailed Overview
+
+The database layer in Payload is a comprehensive abstraction that allows the framework to communicate with different database backends through a consistent API. This modular architecture is centered around the concept of a "database adapter." Each adapter is responsible for translating Payload's query language and data manipulation commands into the specific protocol of the underlying database, such as PostgreSQL, MongoDB, or MySQL.
+
+This section of the documentation provides a deep dive into the internal workings of the database layer, intended for developers who need to build custom database adapters or gain a lower-level understanding of how Payload handles data.
+
+Key components of the database layer include:
+
+- **Database Adapter (`BaseDatabaseAdapter`)**: An interface that defines the contract for all database operations, including CRUD, transactions, and migrations.
+- **Query Building and Sanitization**: Utilities for safely constructing and validating database queries from incoming API requests.
+- **Migration System**: A programmatic API for creating and managing database schema migrations.
+- **Query Validation**: A system to ensure that all queries are valid and respect the access control policies defined in your collections and globals.
+
+<Banner type="info">
+The package is open-source. [View source code](https://github.com/payloadcms/payload/tree/main/packages/payload/src/database). Need help? [Community Help](https://payloadcms.com/community-help).
+</Banner>
+
+## System Requirements
+
+- **PayloadCMS**: `3.54.0`
+- **Node.js**: `^18.20.2 || >=20.9.0`
+- **GraphQL**: `^16.8.1` (as a peer dependency)
+
+## Installation
+
+The database functionality is part of the core `payload` package.
+
+```bash
+# npm
+npm install payload
+
+# yarn
+yarn add payload
+
+# pnpm
+pnpm add payload
+```
+
+This package requires the following peer dependencies:
+```bash
+"graphql": "^16.8.1"
+```
+
+## Quick Start
+
+While Payload comes with official database adapters, you can create your own to support any database. The entry point for creating a custom adapter is the `createDatabaseAdapter` function.
+
+Here is a minimal example of a custom adapter implementation:
+
+```typescript
+import { createDatabaseAdapter } from 'payload/database';
+import type { BaseDatabaseAdapter } from 'payload/database';
+
+// Define your custom adapter logic
+const myCustomAdapter: BaseDatabaseAdapter = {
+  // Implement all required methods from the BaseDatabaseAdapter interface
+  name: 'custom-db',
+  packageName: 'payload-custom-db',
+  payload: null, // Payload will be injected here
+  
+  // Example method implementations
+  async findOne({ collection, where }) {
+    // Your logic to find a single document
+    return null;
+  },
+  
+  // ... other required methods (create, updateOne, deleteOne, etc.)
+};
+
+// Use createDatabaseAdapter to provide default implementations
+// for migrations and other utilities.
+export const adapter = createDatabaseAdapter(myCustomAdapter);
+```
+
+## API Reference
+
+The database layer exposes a set of functions and types to build custom adapters and interact with the database at a low level.
+
+### `createDatabaseAdapter(args)`
+
+A factory function that enriches a partial database adapter with default implementations for migrations, transactions, and other utilities.
+
+- **Parameters:**
+  - `args` (`MarkOptional<T, ...>`): An object implementing at least the required methods of the `BaseDatabaseAdapter` interface.
+- **Returns:** `T`: A complete database adapter instance.
+
+### `BaseDatabaseAdapter` Interface
+
+This is the core interface that all database adapters must implement.
+
+```typescript
+export interface BaseDatabaseAdapter {
+  // Connection and Initialization
+  connect?: (args?: { hotReload: boolean }) => Promise<void>;
+  destroy?: () => Promise<void>;
+  init?: () => Promise<void>;
+  payload: Payload;
+  name: string;
+  packageName: string;
+  defaultIDType: 'number' | 'text';
+  allowIDOnCreate?: boolean;
+
+  // Transactions
+  beginTransaction: (options?: Record<string, unknown>) => Promise<null | number | string>;
+  commitTransaction: (id: number | Promise<number | string> | string) => Promise<void>;
+  rollbackTransaction: (id: number | Promise<number | string> | string) => Promise<void>;
+
+  // CRUD Operations
+  create: (args: CreateArgs) => Promise<Document>;
+  findOne: <T extends TypeWithID>(args: FindOneArgs) => Promise<null | T>;
+  find: <T = TypeWithID>(args: FindArgs) => Promise<PaginatedDocs<T>>;
+  updateOne: (args: UpdateOneArgs) => Promise<Document>;
+  updateMany: (args: UpdateManyArgs) => Promise<Document[] | null>;
+  deleteOne: (args: DeleteOneArgs) => Promise<Document>;
+  deleteMany: (args: DeleteManyArgs) => Promise<void>;
+  
+  // Globals
+  findGlobal: <T extends Record<string, unknown> = any>(args: FindGlobalArgs) => Promise<T>;
+  createGlobal: <T extends Record<string, unknown> = any>(args: CreateGlobalArgs<T>) => Promise<T>;
+  updateGlobal: <T extends Record<string, unknown> = any>(args: UpdateGlobalArgs<T>) => Promise<T>;
+
+  // Versions
+  findVersions: <T = TypeWithID>(args: FindVersionsArgs) => Promise<PaginatedDocs<TypeWithVersion<T>>>;
+  createVersion: <T extends TypeWithID = TypeWithID>(args: CreateVersionArgs<T>) => Promise<TypeWithVersion<T>>;
+  updateVersion: <T extends TypeWithID = TypeWithID>(args: UpdateVersionArgs<T>) => Promise<TypeWithVersion<T>>;
+  deleteVersions: (args: DeleteVersionsArgs) => Promise<void>;
+
+  // Migrations
+  migrationDir: string;
+  createMigration: (args: { file?: string; migrationName?: string; payload: Payload; }) => Promise<void> | void;
+  migrate: (args?: { migrations?: Migration[] }) => Promise<void>;
+  migrateDown: () => Promise<void>;
+  migrateRefresh: () => Promise<void>;
+  migrateReset: () => Promise<void>;
+  migrateStatus: () => Promise<void>;
+  migrateFresh: (args: { forceAcceptWarning?: boolean }) => Promise<void>;
+  
+  // Other
+  count: (args: CountArgs) => Promise<{ totalDocs: number }>;
+  queryDrafts: <T = TypeWithID>(args: QueryDraftsArgs) => Promise<PaginatedDocs<T>>;
+  generateSchema?: (args?: GenerateSchemaArgs) => Promise<void>;
+}
+```
+
+### Utility Functions
+
+- **`combineQueries(where, access)`**: Merges two `where` conditions into a single condition using an `AND` operator.
+- **`sanitizeWhereQuery({ fields, payload, where })`**: Sanitizes a `where` query, currently used for virtual fields linked with relationships.
+- **`getLocalizedPaths(...)`**: Resolves a query path into its localized equivalents based on the schema and current locale.
+- **`validateQueryPaths(...)`**: Validates all paths within a `where` query against the entity schema and access control policies.
+
+## Integrations
+
+The database adapter is the primary integration point between Payload and a database. It is configured in your `payload.config.ts` file.
+
+```typescript
+import { buildConfig } from 'payload/config';
+import { myCustomAdapter } from './db/adapter'; // Your custom adapter
+
+export default buildConfig({
+  // ...
+  db: myCustomAdapter,
+  // ...
+});
+```
+
+When Payload starts, it initializes the adapter by calling its `init` method, passing a reference to the main `payload` instance. This allows the adapter to access the complete application configuration, including collections, globals, and field definitions.
+
+## Troubleshooting
+
+**Common Issues:**
+
+- **"Adapter is missing required methods"**: This error occurs if your custom adapter does not fully implement the `BaseDatabaseAdapter` interface. Use the `createDatabaseAdapter` helper to fill in missing optional methods with default implementations.
+- **Query performance issues**: Ensure that your adapter is creating indexes for frequently queried fields, especially for relationships and unique fields.
+- **Migration conflicts**: When working in a team, ensure that migration files are generated and applied in a consistent order. Payload's migration system uses timestamps to order migrations.
+
+**Debugging:**
+
+You can enable more verbose logging in your adapter to inspect the queries being generated by Payload. The `req` object, available in most adapter method arguments, contains useful context for debugging, including the user and locale.
